@@ -34,15 +34,132 @@
 }
 
 /* --- Smooth theme transition for the whole app --- */
+/* Slightly longer than the wipe so surfaces are still settling as it clears,
+   which hides any residual step in the colour handoff. */
 body, .surf, .surf-bd, .surf-chip, #theme-accent-wash, #ambient-thermal-bg {
-  transition: background-color 0.6s ease, border-color 0.6s ease, color 0.6s ease;
+  transition: background-color 1.1s cubic-bezier(0.4, 0, 0.15, 1),
+    border-color 1.1s cubic-bezier(0.4, 0, 0.15, 1),
+    color 1.1s cubic-bezier(0.4, 0, 0.15, 1),
+    box-shadow 1.1s cubic-bezier(0.4, 0, 0.15, 1);
+}
+
+/* ====================================================================
+   Directional theme transition — everything travels LEFT → RIGHT.
+   The outgoing gradient is wiped off to the right, uncovering the new
+   theme underneath, chased by a bright leading edge.
+   ==================================================================== */
+
+/* Timing shared by every layer of the transition so they stay in lockstep.
+   A long, gently-decelerating curve reads as a glide rather than a snap. */
+:root {
+  --wipe-dur: 1.1s;
+  --wipe-ease: cubic-bezier(0.4, 0, 0.15, 1);
+}
+
+/* Layer 1 — the previous theme's gradient, retreating to the right.
+   The boundary is a soft-edged mask rather than a hard clip: the mask is 3×
+   the element's width, so sliding it from 100% to 0% drags its feathered
+   leading edge across the hero, dissolving the old theme instead of cutting
+   it. Feather band works out to ~14% of the hero's width. */
+.theme-wipe {
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0 33.34%, #000 38%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0 33.34%, #000 38%, #000 100%);
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  will-change: mask-position, -webkit-mask-position;
+  animation: themeWipeOut var(--wipe-dur) var(--wipe-ease) forwards;
+}
+@keyframes themeWipeOut {
+  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+  to   { -webkit-mask-position: 0% 0;   mask-position: 0% 0; }
+}
+
+/* Layer 2 — soft leading edge riding the wipe boundary. Spans the full
+   parent with the glow band held in its left ~23%, so it can travel on a
+   GPU-composited transform instead of animating `left`. */
+.theme-edge {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(var(--accent-rgb) / 0.22) 8%,
+    rgb(var(--accent-rgb) / 0.5) 14%,
+    rgb(255 255 255 / 0.72) 18%,
+    rgb(var(--accent-rgb) / 0.3) 21%,
+    transparent 23%,
+    transparent 100%
+  );
+  filter: blur(6px);
+  will-change: transform, opacity;
+  animation: themeEdgeTravel var(--wipe-dur) var(--wipe-ease) forwards;
+}
+@keyframes themeEdgeTravel {
+  from { transform: translate3d(-24%, 0, 0); opacity: 0; }
+  14%  { opacity: 1; }
+  78%  { opacity: 1; }
+  to   { transform: translate3d(100%, 0, 0); opacity: 0; }
+}
+
+/* Layer 3 — page-wide sweep so the whole app registers the change. Same
+   full-width-plus-transform trick; band occupies the left ~34%. */
+.theme-page-sweep {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(var(--accent-rgb) / 0.07) 12%,
+    rgb(var(--accent-rgb) / 0.16) 22%,
+    rgb(255 255 255 / 0.14) 29%,
+    rgb(var(--accent-rgb) / 0.06) 32%,
+    transparent 34%,
+    transparent 100%
+  );
+  will-change: transform, opacity;
+  animation: themePageSweep 1.3s var(--wipe-ease) forwards;
+}
+@keyframes themePageSweep {
+  from { transform: translate3d(-35%, 0, 0); opacity: 0; }
+  12%  { opacity: 1; }
+  74%  { opacity: 1; }
+  to   { transform: translate3d(100%, 0, 0); opacity: 0; }
+}
+
+/* Content entrance — each block glides in from the left, staggered by --d so
+   the eye is carried across the hero in the same direction as the wipe.
+   Opacity + transform only: both composite, so this stays jank-free. */
+.enter-l {
+  will-change: transform, opacity;
+  animation: enterFromLeft 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0s);
+}
+@keyframes enterFromLeft {
+  from { opacity: 0; transform: translate3d(-22px, 0, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-wipe,
+  .theme-edge,
+  .theme-page-sweep,
+  .enter-l {
+    animation: none !important;
+  }
+  .theme-wipe, .theme-edge, .theme-page-sweep { display: none; }
 }
 
 /* --- Accent helpers ------------------------------------------------- */
-.acc-text { color: var(--accent); transition: color 0.6s ease; }
-.acc-bg { background-color: var(--accent); transition: background-color 0.6s ease; }
+.acc-text { color: var(--accent); transition: color 1.1s cubic-bezier(0.4, 0, 0.15, 1); }
+.acc-bg { background-color: var(--accent); transition: background-color 1.1s cubic-bezier(0.4, 0, 0.15, 1); }
 .acc-bg-10 { background-color: rgb(var(--accent-rgb) / 0.1); }
-.acc-bd { border-color: var(--accent); transition: border-color 0.6s ease; }
+.acc-bd { border-color: var(--accent); transition: border-color 1.1s cubic-bezier(0.4, 0, 0.15, 1); }
 .acc-bd-30 { border-color: rgb(var(--accent-rgb) / 0.3); }
 .acc-bd-40 { border-color: rgb(var(--accent-rgb) / 0.4); }
 .acc-hover-text:hover { color: var(--accent); }
@@ -54,7 +171,8 @@ body, .surf, .surf-bd, .surf-chip, #theme-accent-wash, #ambient-thermal-bg {
 .acc-gradient {
   background-image: linear-gradient(to right, var(--accent), rgb(var(--accent-rgb) / 0.72));
   box-shadow: 0 10px 25px -8px rgb(var(--accent-rgb) / 0.35);
-  transition: background-image 0.6s ease, box-shadow 0.6s ease;
+  transition: background-image 1.1s cubic-bezier(0.4, 0, 0.15, 1),
+    box-shadow 1.1s cubic-bezier(0.4, 0, 0.15, 1);
 }
 ::selection { background: var(--accent); color: #05070a; }
 
@@ -213,7 +331,70 @@ html.lenis, html.lenis body { height: auto; }
   background: var(--accent);
 }
 
-/* Sensor ticks in hero plot */
+/* Sensor ticks in hero plot — eased to match the wipe's glide */
 .tick {
-  transition: background-color 0.9s ease;
+  transition: background-color 1s cubic-bezier(0.4, 0, 0.15, 1);
 }
+
+/* --- Heat simulator slider ------------------------------------------- */
+/* Track is filled up to --fill-pct (set inline from the current temp), so the
+   control reads as a gauge rather than a bare line. */
+.heat-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  background: transparent;
+}
+.heat-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--fill-pct, 40%),
+    var(--border-card) var(--fill-pct, 40%),
+    var(--border-card) 100%
+  );
+}
+.heat-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-card);
+}
+.heat-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.heat-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--surface-card);
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.heat-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface-card);
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.heat-range:hover::-webkit-slider-thumb,
+.heat-range:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 4px rgb(var(--accent-rgb) / 0.2);
+}
+.heat-range:hover::-moz-range-thumb,
+.heat-range:focus-visible::-moz-range-thumb {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 4px rgb(var(--accent-rgb) / 0.2);
+}
+.heat-range:focus-visible { outline: none; }

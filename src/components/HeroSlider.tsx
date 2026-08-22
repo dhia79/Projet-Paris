@@ -19,6 +19,10 @@ interface SlideData {
   svgGlyph: React.ReactNode
 }
 
+const TICK_COUNT = 36
+/** Must outlast the longest transition layer (the 1.3s page sweep). */
+const SWEEP_MS = 1400
+
 const SLIDES: SlideData[] = [
   {
     title: 'Espaces Verts & Canopées',
@@ -102,32 +106,32 @@ const SLIDES: SlideData[] = [
     desc: "Musées, médiathèques, équipements culturels et espaces fraîcheur maintenus à 21°C pour s'abriter durant les pics de chaleur.",
     stat: '60+ Équipements',
     cat: 'indoor',
-    accent: '#F59E0B',
-    accentRgb: '245 158 11',
-    washA: 'rgb(120 53 15 / 0.55)',
-    washB: 'rgb(24 9 1 / 0.35)',
-    bgCarbon: '#FAF6F0',
-    borderCard: '#FBE6C9',
-    chipBg: '#F9EFE2',
-    hoverSurface: '#F5E5CE',
-    gradient: 'linear-gradient(to bottom right, #78350f, #451a03, #180901)',
+    accent: '#CBD5E1',
+    accentRgb: '203 213 225',
+    washA: 'rgb(100 116 139 / 0.45)',
+    washB: 'rgb(51 65 85 / 0.3)',
+    bgCarbon: '#F8F9FA',
+    borderCard: '#E5E8EB',
+    chipBg: '#F1F2F4',
+    hoverSurface: '#EAECEF',
+    gradient: 'linear-gradient(135deg, #94A3B8, #64748b, #334155)',
     svgGlyph: (
-      <svg className="w-full h-full text-amber-400 drop-shadow-[0_10px_25px_rgba(245,158,11,0.4)]" viewBox="0 0 200 200" fill="none">
+      <svg className="w-full h-full text-slate-200 drop-shadow-[0_10px_25px_rgba(203,213,225,0.5)]" viewBox="0 0 200 200" fill="none">
         {/* Air Conditioner Unit Enclosure */}
-        <rect x="35" y="45" width="130" height="65" rx="10" fill="#78350f" fillOpacity="0.8" stroke="#FBBF24" strokeWidth="2.5" />
-        <rect x="45" y="55" width="110" height="20" rx="4" fill="#451a03" stroke="#F59E0B" strokeWidth="1.5" />
-        
+        <rect x="35" y="45" width="130" height="65" rx="10" fill="#64748B" fillOpacity="0.85" stroke="#E2E8F0" strokeWidth="2.5" />
+        <rect x="45" y="55" width="110" height="20" rx="4" fill="#475569" stroke="#CBD5E1" strokeWidth="1.5" />
+
         {/* AC Vents & Status Indicator Light */}
-        <line x1="52" y1="65" x2="135" y2="65" stroke="#FCD34D" strokeWidth="2" strokeLinecap="round" />
+        <line x1="52" y1="65" x2="135" y2="65" stroke="#F1F5F9" strokeWidth="2" strokeLinecap="round" />
         <circle cx="146" cy="65" r="3" fill="#10B981" />
 
         {/* Snowflake Cooling Icon on Unit */}
-        <path d="M100 82 L100 98 M92 90 L108 90 M94 84 L106 96 M106 84 L94 96" stroke="#FDE68A" strokeWidth="2" strokeLinecap="round" />
+        <path d="M100 82 L100 98 M92 90 L108 90 M94 84 L106 96 M106 84 L94 96" stroke="#F8FAFC" strokeWidth="2" strokeLinecap="round" />
 
         {/* Cool Air Breeze Flow Waves Drifting Downward */}
-        <path d="M50 120 C70 135 85 135 105 120 C125 105 140 105 160 120" stroke="#FBBF24" strokeWidth="3" strokeLinecap="round" fill="none" />
-        <path d="M60 145 C80 160 95 160 115 145 C135 130 150 130 170 145" stroke="#F59E0B" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.8" />
-        <path d="M45 170 C65 185 80 185 100 170 C120 155 135 155 155 170" stroke="#FCD34D" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.6" />
+        <path d="M50 120 C70 135 85 135 105 120 C125 105 140 105 160 120" stroke="#E2E8F0" strokeWidth="3" strokeLinecap="round" fill="none" />
+        <path d="M60 145 C80 160 95 160 115 145 C135 130 150 130 170 145" stroke="#CBD5E1" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.8" />
+        <path d="M45 170 C65 185 80 185 100 170 C120 155 135 155 155 170" stroke="#F1F5F9" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.6" />
       </svg>
     ),
   },
@@ -136,10 +140,17 @@ const SLIDES: SlideData[] = [
 export function HeroSlider() {
   const [activeIdx, setActiveIdx] = useState(0)
   const [animating, setAnimating] = useState(false)
+  const [sweeping, setSweeping] = useState(false)
+  /** Gradient of the slide being replaced — painted on the retreating wipe layer. */
+  const [prevGradient, setPrevGradient] = useState<string | null>(null)
   const setFilter = useCoolSpotStore((s) => s.setFilter)
   const currentSlide: SlideData = SLIDES[activeIdx] ?? SLIDES[0]!
   const ticksRef = useRef<HTMLDivElement>(null)
   const touchStartRef = useRef<number | null>(null)
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  // Never leave a pending sweep timer behind on unmount.
+  useEffect(() => () => timersRef.current.forEach(clearTimeout), [])
 
   // Dynamically repaint the entire application's root CSS properties on theme change
   useEffect(() => {
@@ -154,28 +165,51 @@ export function HeroSlider() {
     root.style.setProperty('--hover-surface', currentSlide.hoverSurface)
   }, [currentSlide])
 
-  // Generate sensor ticks
+  // Build the sensor ticks once — heights stay put so only colour animates.
   useEffect(() => {
-    if (!ticksRef.current) return
     const container = ticksRef.current
+    if (!container) return
     container.innerHTML = ''
-    const count = 36
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < TICK_COUNT; i++) {
       const bar = document.createElement('div')
       bar.className = 'tick w-[3px] rounded-t-sm'
-      const h = Math.floor(Math.random() * 85) + 15
-      bar.style.height = `${h}%`
-      bar.style.backgroundColor = i > 28 ? '#EF4444' : i > 18 ? '#F59E0B' : currentSlide.accent
+      bar.style.height = `${Math.floor(Math.random() * 85) + 15}%`
       container.appendChild(bar)
     }
-  }, [activeIdx, currentSlide])
+  }, [])
+
+  // Recolour the ticks as a left → right cascade, matching the wipe direction.
+  useEffect(() => {
+    const container = ticksRef.current
+    if (!container) return
+    const bars = container.children
+    for (let i = 0; i < bars.length; i++) {
+      const bar = bars[i] as HTMLElement
+      bar.style.transitionDelay = `${i * 18}ms`
+      bar.style.backgroundColor = i > 28 ? '#EF4444' : i > 18 ? '#F59E0B' : currentSlide.accent
+    }
+  }, [currentSlide])
 
   const goToSlide = (idx: number) => {
-    if (idx === activeIdx || animating) return
+    if (idx === activeIdx) return
+    // Restart cleanly if a previous sweep is still in flight, so rapid clicks
+    // retarget the transition instead of being swallowed or stacking overlays.
+    timersRef.current.forEach(clearTimeout)
+    timersRef.current = []
+
     setAnimating(true)
+    setSweeping(true)
+    setPrevGradient(currentSlide.gradient)
     setActiveIdx(idx)
     setFilter('category', SLIDES[idx]?.cat ?? 'all')
-    setTimeout(() => setAnimating(false), 450)
+
+    timersRef.current.push(
+      setTimeout(() => setAnimating(false), 600),
+      setTimeout(() => {
+        setSweeping(false)
+        setPrevGradient(null)
+      }, SWEEP_MS),
+    )
   }
 
   // Swipe gesture support for mobile & touchpad
@@ -208,7 +242,7 @@ export function HeroSlider() {
       id="oasis-slider"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="relative w-full min-h-[520px] sm:min-h-[560px] rounded-3xl overflow-hidden p-8 sm:p-12 flex flex-col justify-between text-white shadow-2xl border border-white/10 my-4 transition-all duration-700"
+      className="relative w-full min-h-[520px] sm:min-h-[560px] rounded-3xl overflow-hidden p-8 sm:p-12 flex flex-col justify-between text-white shadow-2xl border border-white/10 my-4 transition-[box-shadow] duration-700 ease-[cubic-bezier(0.4,0,0.15,1)]"
       style={{ background: currentSlide.gradient }}
     >
       {/* Ambient Sensor-Tick Layer */}
@@ -219,6 +253,20 @@ export function HeroSlider() {
           className="absolute bottom-0 right-0 w-1/2 h-2/3 flex items-end justify-end gap-[3px] pr-8 pb-8 opacity-[0.15]"
         />
       </div>
+
+      {/* Directional theme transition: the outgoing gradient retreats to the
+          right, uncovering the new theme, chased by a bright leading edge. */}
+      {sweeping && prevGradient && (
+        <>
+          <div
+            key={`wipe-${activeIdx}`}
+            className="theme-wipe absolute inset-0 z-20"
+            style={{ background: prevGradient }}
+          />
+          <div key={`edge-${activeIdx}`} className="theme-edge z-30" />
+          <div key={`page-${activeIdx}`} className="theme-page-sweep" />
+        </>
+      )}
 
       {/* Header / Navigation Bar inside Hero */}
       <div className="relative z-10 flex justify-between items-center">
@@ -257,16 +305,27 @@ export function HeroSlider() {
       {/* Main Hero Content (2-Column Grid) */}
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 items-center gap-8 lg:gap-12 my-auto py-6">
         {/* Left Column: Text & Action */}
-        <div className={`space-y-4 max-w-xl transition-all duration-500 ${animating ? 'opacity-0 translateY-4 blur-sm' : 'opacity-100 translateY-0 blur-0'}`}>
-          <div className="overflow-hidden py-1">
+        {/* Each block enters from the left, staggered, so the reveal tracks
+            the wipe as it crosses the hero. */}
+        <div className="space-y-4 max-w-xl">
+          <div key={`title-${activeIdx}`} className="enter-l overflow-hidden py-1" style={{ ['--d' as string]: '0.2s' }}>
             <h2 id="slide-title" className="font-serif-editorial text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-none text-white">
               {currentSlide.title}
             </h2>
           </div>
-          <p id="slide-desc" className="text-slate-200/90 text-sm sm:text-base font-light leading-relaxed">
+          <p
+            key={`desc-${activeIdx}`}
+            id="slide-desc"
+            className="enter-l text-slate-200/90 text-sm sm:text-base font-light leading-relaxed"
+            style={{ ['--d' as string]: '0.34s' }}
+          >
             {currentSlide.desc}
           </p>
-          <div className="pt-2 flex flex-wrap items-center gap-4">
+          <div
+            key={`cta-${activeIdx}`}
+            className="enter-l pt-2 flex flex-wrap items-center gap-4"
+            style={{ ['--d' as string]: '0.48s' }}
+          >
             <span id="slide-stat" className="font-mono-data text-xs px-3.5 py-1.5 rounded-lg bg-white/10 border border-white/15 acc-text font-semibold tabular-nums">
               {currentSlide.stat}
             </span>
@@ -289,14 +348,12 @@ export function HeroSlider() {
             style={{ background: `rgb(${currentSlide.accentRgb} / 0.35)` }}
           />
 
-          {/* Glassmorphic Container with Floating Motion */}
+          {/* Glassmorphic Container — enters last, being furthest right */}
           <div
-            className={`relative z-10 w-60 h-60 sm:w-72 sm:h-72 rounded-3xl p-6 border border-white/20 bg-black/20 backdrop-blur-xl shadow-2xl flex items-center justify-center animate-float-orb transition-all duration-500 ease-out transform ${
-              animating
-                ? 'opacity-0 scale-75 rotate-6 blur-md'
-                : 'opacity-100 scale-100 rotate-0 blur-0'
-            }`}
+            key={`glyph-${activeIdx}`}
+            className="enter-l relative z-10 w-60 h-60 sm:w-72 sm:h-72 rounded-3xl p-6 border border-white/20 bg-black/20 backdrop-blur-xl shadow-2xl flex items-center justify-center animate-float-orb"
             style={{
+              ['--d' as string]: '0.64s',
               boxShadow: `0 25px 50px -12px rgb(${currentSlide.accentRgb} / 0.4), inset 0 0 25px 2px rgb(${currentSlide.accentRgb} / 0.15)`,
             }}
           >

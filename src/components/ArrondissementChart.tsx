@@ -22,7 +22,7 @@ function CustomTooltip({ active, payload, label }: any) {
       <div className="font-bold ink border-b surf-bd pb-1">Paris {label}</div>
       <div className="text-emerald-700">Parcs: {data.green_space || 0}</div>
       <div className="text-blue-700">Fontaines: {data.fountain || 0}</div>
-      <div className="text-amber-700">Lieux frais: {(data.indoor || 0) + (data.mist || 0)}</div>
+      <div className="text-slate-400">Lieux frais: {(data.indoor || 0) + (data.mist || 0)}</div>
       <div className="font-bold ink border-t surf-bd pt-1">Total: {data.total}</div>
     </div>
   )
@@ -60,7 +60,7 @@ export function ArrondissementChart({ stats, loading }: ArrondissementChartProps
             />
             <Bar dataKey="green_space" stackId="a" fill="#10B981" radius={[0, 0, 0, 0]} />
             <Bar dataKey="fountain" stackId="a" fill="#3B82F6" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="indoor" stackId="a" fill="#F59E0B" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="indoor" stackId="a" fill="#CBD5E1" radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
