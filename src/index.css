@@ -3,41 +3,46 @@
 @tailwind utilities;
 
 :root {
-  /* Light editorial paper theme */
-  --bg-carbon: #F7F5F0;
+  /* Dynamic editorial paper theme (updated by HeroSlider theme transitions) */
+  --bg-carbon: #F4F9F6;
   --surface-card: #FFFFFF;
-  --border-card: #E4E0D4;
+  --border-card: #D1E7DD;
   --ink: #14171A;
   --ink-soft: #4B5259;
   --ink-mute: #7A8087;
-  --chip-bg: #EFECE3;
-  --hover-surface: #F1EEE5;
+  --chip-bg: #E6F3EC;
+  --hover-surface: #DCEFE4;
   --heat-alert: #EF4444;
   --heat-mid: #CB181D;
   --heat-dark: #67000D;
 
-  /* Per-slide theme accent. Tweened by changeSlide(); read by accent surfaces */
+  /* Per-slide theme accent. Tweened by active slide selection */
   --accent: #10B981;
   --accent-rgb: 16 185 129;
   --accent-primary: var(--accent);
   --accent-green: var(--accent);
 
-  /* Full-page wash tinted by the active slide */
+  /* Full-page wash tinted by active slide */
   --theme-wash-a: rgb(6 78 59 / 0.55);
   --theme-wash-b: rgb(2 19 11 / 0.35);
 
-  /* Heat-slider layer, owned solely by the temperature simulator */
+  /* Heat-slider layer, owned solely by temperature simulator */
   --heat-wash: rgb(6 78 59 / 0.30);
   --heat-opacity: 0.2;
 
   --grid-line: rgb(20 23 26 / 0.05);
 }
 
+/* --- Smooth theme transition for the whole app --- */
+body, .surf, .surf-bd, .surf-chip, #theme-accent-wash, #ambient-thermal-bg {
+  transition: background-color 0.6s ease, border-color 0.6s ease, color 0.6s ease;
+}
+
 /* --- Accent helpers ------------------------------------------------- */
-.acc-text { color: var(--accent); }
-.acc-bg { background-color: var(--accent); }
+.acc-text { color: var(--accent); transition: color 0.6s ease; }
+.acc-bg { background-color: var(--accent); transition: background-color 0.6s ease; }
 .acc-bg-10 { background-color: rgb(var(--accent-rgb) / 0.1); }
-.acc-bd { border-color: var(--accent); }
+.acc-bd { border-color: var(--accent); transition: border-color 0.6s ease; }
 .acc-bd-30 { border-color: rgb(var(--accent-rgb) / 0.3); }
 .acc-bd-40 { border-color: rgb(var(--accent-rgb) / 0.4); }
 .acc-hover-text:hover { color: var(--accent); }
@@ -49,6 +54,7 @@
 .acc-gradient {
   background-image: linear-gradient(to right, var(--accent), rgb(var(--accent-rgb) / 0.72));
   box-shadow: 0 10px 25px -8px rgb(var(--accent-rgb) / 0.35);
+  transition: background-image 0.6s ease, box-shadow 0.6s ease;
 }
 ::selection { background: var(--accent); color: #05070a; }
 
@@ -126,7 +132,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     radial-gradient(100% 70% at 10% 100%, var(--theme-wash-b) 0%, transparent 65%);
 }
 
-/* Heat layer: composited under the theme wash */
+/* Heat layer: composited under theme wash */
 #ambient-thermal-bg {
   background: linear-gradient(to bottom, var(--heat-wash) 0%, transparent 55%);
   opacity: var(--heat-opacity);
@@ -177,10 +183,10 @@ html.lenis, html.lenis body { height: auto; }
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #F7F5F0;
+  background: var(--bg-carbon);
 }
 ::-webkit-scrollbar-thumb {
-  background: #E4E0D4;
+  background: var(--border-card);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {

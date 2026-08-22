@@ -9,6 +9,12 @@ interface SlideData {
   cat: CoolSpotCategory | 'all'
   accent: string
   accentRgb: string
+  washA: string
+  washB: string
+  bgCarbon: string
+  borderCard: string
+  chipBg: string
+  hoverSurface: string
   gradient: string
   svgGlyph: React.ReactNode
 }
@@ -21,6 +27,12 @@ const SLIDES: SlideData[] = [
     cat: 'green_space',
     accent: '#10B981',
     accentRgb: '16 185 129',
+    washA: 'rgb(6 78 59 / 0.55)',
+    washB: 'rgb(2 19 11 / 0.35)',
+    bgCarbon: '#F4F9F6',
+    borderCard: '#D1E7DD',
+    chipBg: '#E6F3EC',
+    hoverSurface: '#DCEFE4',
     gradient: 'linear-gradient(to bottom right, #064e3b, #052e16, #02130b)',
     svgGlyph: (
       <svg className="w-full h-full text-emerald-400 opacity-90" viewBox="0 0 200 200" fill="none" stroke="currentColor">
@@ -39,6 +51,12 @@ const SLIDES: SlideData[] = [
     cat: 'fountain',
     accent: '#3B82F6',
     accentRgb: '59 130 246',
+    washA: 'rgb(30 58 138 / 0.55)',
+    washB: 'rgb(15 23 42 / 0.35)',
+    bgCarbon: '#F0F5FA',
+    borderCard: '#D0E1FD',
+    chipBg: '#E2EDFD',
+    hoverSurface: '#D5E4FC',
     gradient: 'linear-gradient(to bottom right, #1e3a8a, #172554, #090d16)',
     svgGlyph: (
       <svg className="w-full h-full text-blue-400 opacity-90" viewBox="0 0 200 200" fill="none" stroke="currentColor">
@@ -56,6 +74,12 @@ const SLIDES: SlideData[] = [
     cat: 'indoor',
     accent: '#F59E0B',
     accentRgb: '245 158 11',
+    washA: 'rgb(120 53 15 / 0.55)',
+    washB: 'rgb(24 9 1 / 0.35)',
+    bgCarbon: '#FAF6F0',
+    borderCard: '#FBE6C9',
+    chipBg: '#F9EFE2',
+    hoverSurface: '#F5E5CE',
     gradient: 'linear-gradient(to bottom right, #78350f, #451a03, #180901)',
     svgGlyph: (
       <svg className="w-full h-full text-amber-400 opacity-90" viewBox="0 0 200 200" fill="none" stroke="currentColor">
@@ -74,13 +98,22 @@ export function HeroSlider() {
   const setFilter = useCoolSpotStore((s) => s.setFilter)
   const currentSlide: SlideData = SLIDES[activeIdx] ?? SLIDES[0]!
   const ticksRef = useRef<HTMLDivElement>(null)
+  const touchStartRef = useRef<number | null>(null)
 
+  // Dynamically repaint the entire application's root CSS properties on theme change
   useEffect(() => {
     const root = document.documentElement
     root.style.setProperty('--accent', currentSlide.accent)
     root.style.setProperty('--accent-rgb', currentSlide.accentRgb)
+    root.style.setProperty('--theme-wash-a', currentSlide.washA)
+    root.style.setProperty('--theme-wash-b', currentSlide.washB)
+    root.style.setProperty('--bg-carbon', currentSlide.bgCarbon)
+    root.style.setProperty('--border-card', currentSlide.borderCard)
+    root.style.setProperty('--chip-bg', currentSlide.chipBg)
+    root.style.setProperty('--hover-surface', currentSlide.hoverSurface)
   }, [currentSlide])
 
+  // Generate sensor ticks
   useEffect(() => {
     if (!ticksRef.current) return
     const container = ticksRef.current
@@ -91,16 +124,38 @@ export function HeroSlider() {
       bar.className = 'tick w-[3px] rounded-t-sm'
       const h = Math.floor(Math.random() * 85) + 15
       bar.style.height = `${h}%`
-      bar.style.backgroundColor = i > 28 ? '#EF4444' : i > 18 ? '#F59E0B' : '#10B981'
+      bar.style.backgroundColor = i > 28 ? '#EF4444' : i > 18 ? '#F59E0B' : currentSlide.accent
       container.appendChild(bar)
     }
-  }, [activeIdx])
+  }, [activeIdx, currentSlide])
 
   const goToSlide = (idx: number) => {
     if (idx === activeIdx || animating) return
     setAnimating(true)
     setActiveIdx(idx)
+    setFilter('category', SLIDES[idx]?.cat ?? 'all')
     setTimeout(() => setAnimating(false), 400)
+  }
+
+  // Swipe gesture support for mobile & touchpad
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = e.touches[0]?.clientX ?? null
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartRef.current === null) return
+    const touchEnd = e.changedTouches[0]?.clientX ?? touchStartRef.current
+    const diff = touchStartRef.current - touchEnd
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) {
+        // Swipe left -> next slide
+        goToSlide((activeIdx + 1) % SLIDES.length)
+      } else {
+        // Swipe right -> prev slide
+        goToSlide((activeIdx - 1 + SLIDES.length) % SLIDES.length)
+      }
+    }
+    touchStartRef.current = null
   }
 
   const applyCategoryFilter = () => {
@@ -112,6 +167,8 @@ export function HeroSlider() {
   return (
     <div
       id="oasis-slider"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       className="relative w-full min-h-[500px] sm:min-h-[550px] rounded-3xl overflow-hidden p-8 sm:p-12 flex flex-col justify-between text-white shadow-2xl border border-white/10 my-4 transition-all duration-700"
       style={{ background: currentSlide.gradient }}
     >
@@ -130,16 +187,33 @@ export function HeroSlider() {
           <span className="kicker-mark"></span>
           Paris Climate Refuge Navigator
         </span>
-        <button
-          onClick={() => {
-            const input = document.getElementById('search-input')
-            input?.focus()
-            input?.scrollIntoView({ behavior: 'smooth' })
-          }}
-          className="px-5 py-2 rounded-md bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-xs font-mono-data tracking-wider transition-colors cursor-pointer"
-        >
-          Explorer la Table ↓
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Quick Prev / Next Theme Arrows */}
+          <button
+            onClick={() => goToSlide((activeIdx - 1 + SLIDES.length) % SLIDES.length)}
+            aria-label="Thème précédent"
+            className="px-3 py-1.5 rounded-md bg-white/[0.06] hover:bg-white/[0.15] border border-white/15 text-xs font-mono-data transition-colors cursor-pointer"
+          >
+            ←
+          </button>
+          <button
+            onClick={() => goToSlide((activeIdx + 1) % SLIDES.length)}
+            aria-label="Thème suivant"
+            className="px-3 py-1.5 rounded-md bg-white/[0.06] hover:bg-white/[0.15] border border-white/15 text-xs font-mono-data transition-colors cursor-pointer"
+          >
+            →
+          </button>
+          <button
+            onClick={() => {
+              const input = document.getElementById('search-input')
+              input?.focus()
+              input?.scrollIntoView({ behavior: 'smooth' })
+            }}
+            className="px-4 py-1.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-xs font-mono-data tracking-wider transition-colors cursor-pointer hidden sm:inline"
+          >
+            Explorer la Table ↓
+          </button>
+        </div>
       </div>
 
       {/* Main Hero Content (2-Column Grid) */}
@@ -191,13 +265,13 @@ export function HeroSlider() {
               onClick={() => goToSlide(idx)}
               className={`thumb-btn relative flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-all ${
                 isActive
-                  ? 'bg-white/10 border border-white/20 opacity-100'
+                  ? 'bg-white/15 border border-white/30 opacity-100 shadow-md'
                   : 'bg-white/5 border border-white/5 opacity-60 hover:opacity-100'
               }`}
             >
-              <span className="font-mono-data text-[10px] text-slate-400 tabular-nums">0{idx + 1}</span>
+              <span className="font-mono-data text-[10px] text-slate-300 tabular-nums">0{idx + 1}</span>
               <span className="text-xs font-mono-data font-medium">{slide.title.split('&')[0]}</span>
-              {isActive && <div className="active-indicator absolute bottom-0 left-0 right-0 h-[2px] acc-bg rounded-b-xl" />}
+              {isActive && <div className="active-indicator absolute bottom-0 left-0 right-0 h-[2.5px] acc-bg rounded-b-xl" />}
             </button>
           )
         })}
