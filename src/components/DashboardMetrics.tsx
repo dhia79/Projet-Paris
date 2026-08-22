@@ -40,7 +40,7 @@ export function DashboardMetrics({
         <span className="font-mono-data text-[11px] ink-mute uppercase tracking-wider block">
           Fontaines d'eau
         </span>
-        <div id="stat-fountain-count" className="text-3xl font-serif-editorial acc-text">
+        <div id="stat-fountain-count" className="text-3xl font-serif-editorial text-blue-600 font-bold">
           {loading ? '—' : fountainCount.toLocaleString('fr-FR')}
         </div>
         <span className="font-mono-data text-[10px] ink-mute block">
@@ -53,7 +53,7 @@ export function DashboardMetrics({
         <span className="font-mono-data text-[11px] ink-mute uppercase tracking-wider block">
           Parcs & canopée
         </span>
-        <div id="stat-green-count" className="text-3xl font-serif-editorial acc-text">
+        <div id="stat-green-count" className="text-3xl font-serif-editorial text-emerald-700 font-bold">
           {loading ? '—' : greenCount.toLocaleString('fr-FR')}
         </div>
         <span className="font-mono-data text-[10px] ink-mute block">

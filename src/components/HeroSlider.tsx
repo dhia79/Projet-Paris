@@ -10,6 +10,7 @@ interface SlideData {
   accent: string
   accentRgb: string
   accentText: string
+  heroTagText: string
   washA: string
   washB: string
   bgCarbon: string
@@ -33,6 +34,7 @@ const SLIDES: SlideData[] = [
     accent: '#10B981',
     accentRgb: '16 185 129',
     accentText: '#047857',
+    heroTagText: 'text-emerald-300',
     washA: 'rgb(6 78 59 / 0.55)',
     washB: 'rgb(2 19 11 / 0.35)',
     bgCarbon: '#F4F9F6',
@@ -74,6 +76,7 @@ const SLIDES: SlideData[] = [
     accent: '#3B82F6',
     accentRgb: '59 130 246',
     accentText: '#1D4ED8',
+    heroTagText: 'text-blue-300',
     washA: 'rgb(30 58 138 / 0.55)',
     washB: 'rgb(15 23 42 / 0.35)',
     bgCarbon: '#F0F5FA',
@@ -112,6 +115,7 @@ const SLIDES: SlideData[] = [
     accent: '#64748B',
     accentRgb: '100 116 139',
     accentText: '#334155',
+    heroTagText: 'text-slate-200',
     washA: 'rgb(100 116 139 / 0.45)',
     washB: 'rgb(51 65 85 / 0.3)',
     bgCarbon: '#F8F9FA',
@@ -272,7 +276,7 @@ export function HeroSlider() {
 
       {/* Header / Navigation Bar inside Hero */}
       <div className="relative z-10 flex justify-between items-center">
-        <span className="font-mono-data text-xs tracking-widest text-emerald-300 uppercase px-3.5 py-1.5 rounded-md bg-black/40 border border-white/10 flex items-center gap-2.5">
+        <span className={`font-mono-data text-xs tracking-widest ${currentSlide.heroTagText} uppercase px-3.5 py-1.5 rounded-md bg-black/40 border border-white/10 flex items-center gap-2.5`}>
           <span className="kicker-mark"></span>
           Paris Climate Refuge Navigator
         </span>
@@ -328,7 +332,7 @@ export function HeroSlider() {
             className="enter-l pt-2 flex flex-wrap items-center gap-4"
             style={{ ['--d' as string]: '0.48s' }}
           >
-            <span id="slide-stat" className="font-mono-data text-xs px-3.5 py-1.5 rounded-lg bg-white/10 border border-white/15 text-emerald-300 font-semibold tabular-nums">
+            <span id="slide-stat" className={`font-mono-data text-xs px-3.5 py-1.5 rounded-lg bg-white/10 border border-white/15 ${currentSlide.heroTagText} font-semibold tabular-nums`}>
               {currentSlide.stat}
             </span>
             <button

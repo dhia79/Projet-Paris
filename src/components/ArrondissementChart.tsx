@@ -48,7 +48,7 @@ export function ArrondissementChart({ stats, loading }: ArrondissementChartProps
           <BarChart data={[...stats]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <XAxis dataKey="label" stroke="#7A8087" fontSize={11} fontFamily="JetBrains Mono" />
             <YAxis stroke="#7A8087" fontSize={11} fontFamily="JetBrains Mono" />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={false} />
             <Legend
               wrapperStyle={{ fontFamily: 'JetBrains Mono', fontSize: '11px', paddingTop: '10px' }}
               formatter={(value) => {

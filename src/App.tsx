@@ -146,7 +146,7 @@ export default function App() {
       {/* Ambient Dynamic Thermal Gradient Overlay */}
       <div
         id="ambient-thermal-bg"
-        className="fixed inset-0 pointer-events-none z-0 transition-all duration-700 bg-gradient-to-b from-emerald-950/30 via-transparent to-transparent"
+        className="fixed inset-0 pointer-events-none z-0 transition-all duration-700"
       ></div>
 
       {/* Main Layout Wrapper */}
