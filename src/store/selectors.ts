@@ -24,6 +24,7 @@ export function matchesFilter(
 ): boolean {
   if (filter.category !== 'all' && spot.category !== filter.category) return false
   if (filter.arrondissement !== 'all' && spot.arrondissement !== filter.arrondissement) return false
+  if (filter.source !== 'all' && spot.source !== filter.source) return false
   if (filter.favoritesOnly && !favoritesSet.has(spot.id)) return false
 
   if (filter.price === 'FREE' && !spot.isFree) return false
@@ -135,6 +136,12 @@ export function selectAvailableArrondissements(items: readonly CoolSpot[]): stri
   return [...codes].sort((a, b) => a.localeCompare(b))
 }
 
+export function selectAvailableSources(items: readonly CoolSpot[]): string[] {
+  const sources = new Set<string>()
+  for (const spot of items) if (spot.source) sources.add(spot.source)
+  return [...sources].sort((a, b) => a.localeCompare(b))
+}
+
 export function selectActiveFiltersCount(filter: CoolSpotFilter, initial: CoolSpotFilter): number {
   let count = 0
   if (filter.query.trim() !== initial.query) count += 1
@@ -142,6 +149,7 @@ export function selectActiveFiltersCount(filter: CoolSpotFilter, initial: CoolSp
   if (filter.arrondissement !== initial.arrondissement) count += 1
   if (filter.availability !== initial.availability) count += 1
   if (filter.price !== initial.price) count += 1
+  if (filter.source !== initial.source) count += 1
   if (filter.favoritesOnly !== initial.favoritesOnly) count += 1
   return count
 }

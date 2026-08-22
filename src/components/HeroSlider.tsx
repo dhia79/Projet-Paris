@@ -9,6 +9,7 @@ interface SlideData {
   cat: CoolSpotCategory | 'all'
   accent: string
   accentRgb: string
+  accentText: string
   washA: string
   washB: string
   bgCarbon: string
@@ -31,6 +32,7 @@ const SLIDES: SlideData[] = [
     cat: 'green_space',
     accent: '#10B981',
     accentRgb: '16 185 129',
+    accentText: '#047857',
     washA: 'rgb(6 78 59 / 0.55)',
     washB: 'rgb(2 19 11 / 0.35)',
     bgCarbon: '#F4F9F6',
@@ -71,6 +73,7 @@ const SLIDES: SlideData[] = [
     cat: 'fountain',
     accent: '#3B82F6',
     accentRgb: '59 130 246',
+    accentText: '#1D4ED8',
     washA: 'rgb(30 58 138 / 0.55)',
     washB: 'rgb(15 23 42 / 0.35)',
     bgCarbon: '#F0F5FA',
@@ -106,8 +109,9 @@ const SLIDES: SlideData[] = [
     desc: "Musées, médiathèques, équipements culturels et espaces fraîcheur maintenus à 21°C pour s'abriter durant les pics de chaleur.",
     stat: '60+ Équipements',
     cat: 'indoor',
-    accent: '#CBD5E1',
-    accentRgb: '203 213 225',
+    accent: '#64748B',
+    accentRgb: '100 116 139',
+    accentText: '#334155',
     washA: 'rgb(100 116 139 / 0.45)',
     washB: 'rgb(51 65 85 / 0.3)',
     bgCarbon: '#F8F9FA',
@@ -139,7 +143,6 @@ const SLIDES: SlideData[] = [
 
 export function HeroSlider() {
   const [activeIdx, setActiveIdx] = useState(0)
-  const [animating, setAnimating] = useState(false)
   const [sweeping, setSweeping] = useState(false)
   /** Gradient of the slide being replaced — painted on the retreating wipe layer. */
   const [prevGradient, setPrevGradient] = useState<string | null>(null)
@@ -157,6 +160,7 @@ export function HeroSlider() {
     const root = document.documentElement
     root.style.setProperty('--accent', currentSlide.accent)
     root.style.setProperty('--accent-rgb', currentSlide.accentRgb)
+    root.style.setProperty('--accent-text', currentSlide.accentText)
     root.style.setProperty('--theme-wash-a', currentSlide.washA)
     root.style.setProperty('--theme-wash-b', currentSlide.washB)
     root.style.setProperty('--bg-carbon', currentSlide.bgCarbon)
@@ -197,14 +201,12 @@ export function HeroSlider() {
     timersRef.current.forEach(clearTimeout)
     timersRef.current = []
 
-    setAnimating(true)
     setSweeping(true)
     setPrevGradient(currentSlide.gradient)
     setActiveIdx(idx)
     setFilter('category', SLIDES[idx]?.cat ?? 'all')
 
     timersRef.current.push(
-      setTimeout(() => setAnimating(false), 600),
       setTimeout(() => {
         setSweeping(false)
         setPrevGradient(null)
@@ -270,7 +272,7 @@ export function HeroSlider() {
 
       {/* Header / Navigation Bar inside Hero */}
       <div className="relative z-10 flex justify-between items-center">
-        <span className="font-mono-data text-xs tracking-widest acc-text uppercase px-3.5 py-1.5 rounded-md bg-black/40 border border-white/10 flex items-center gap-2.5">
+        <span className="font-mono-data text-xs tracking-widest text-emerald-300 uppercase px-3.5 py-1.5 rounded-md bg-black/40 border border-white/10 flex items-center gap-2.5">
           <span className="kicker-mark"></span>
           Paris Climate Refuge Navigator
         </span>
@@ -326,7 +328,7 @@ export function HeroSlider() {
             className="enter-l pt-2 flex flex-wrap items-center gap-4"
             style={{ ['--d' as string]: '0.48s' }}
           >
-            <span id="slide-stat" className="font-mono-data text-xs px-3.5 py-1.5 rounded-lg bg-white/10 border border-white/15 acc-text font-semibold tabular-nums">
+            <span id="slide-stat" className="font-mono-data text-xs px-3.5 py-1.5 rounded-lg bg-white/10 border border-white/15 text-emerald-300 font-semibold tabular-nums">
               {currentSlide.stat}
             </span>
             <button

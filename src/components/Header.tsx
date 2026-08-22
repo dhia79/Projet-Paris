@@ -213,7 +213,7 @@ export function Header() {
       <section className="max-w-6xl mx-auto px-4 sm:px-8 pt-10 pb-6 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-2">
-            <div className="font-mono-data text-xs acc-text tracking-widest uppercase flex items-center gap-2.5">
+            <div className="font-mono-data text-xs acc-text font-bold tracking-widest uppercase flex items-center gap-2.5">
               <span className="kicker-mark"></span>
               Rapport Data Spécial : Vagues de Chaleur & Refuges Municipaux
             </div>

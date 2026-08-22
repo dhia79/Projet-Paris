@@ -3,6 +3,7 @@ import { useCoolSpotStore } from './store/useCoolSpotStore'
 import {
   selectActiveFiltersCount,
   selectAvailableArrondissements,
+  selectAvailableSources,
   selectCountsByCategory,
   selectFilteredItems,
   selectPageCount,
@@ -123,6 +124,7 @@ export default function App() {
   const countsByCategory = selectCountsByCategory(items)
   const statsByArrondissement = selectStatsByArrondissement(filtered)
   const availableArrondissements = selectAvailableArrondissements(items)
+  const availableSources = selectAvailableSources(items)
   const activeFiltersCount = selectActiveFiltersCount(filters, useCoolSpotStore.getState().filters)
 
   return (
@@ -175,6 +177,7 @@ export default function App() {
                 sort={sort}
                 favoritesCount={favorites.length}
                 availableArrondissements={availableArrondissements}
+                availableSources={availableSources}
                 disabled={loading}
                 onFilterChange={setFilter}
                 onSortChange={setSort}

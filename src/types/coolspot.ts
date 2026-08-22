@@ -54,6 +54,12 @@ export interface CoolSpot {
 export type SortableColumn = 'name' | 'category' | 'arrondissement' | 'address' | 'canopyScore'
 export type SortDirection = 'asc' | 'desc'
 
+export const SOURCE_LABELS: Record<string, string> = {
+  'fontaines-a-boire': 'Fontaines à boire',
+  'espaces_verts': 'Espaces verts',
+  'ilots-de-fraicheur-equipements-activites': 'Équipements & activités',
+}
+
 export interface CoolSpotFilter {
   query: string
   /** `'all'` means no category constraint, or category name string. */
@@ -62,6 +68,8 @@ export interface CoolSpotFilter {
   arrondissement: string
   availability: AvailabilityFilter
   price: PriceFilter
+  /** `'all'` means no source constraint, or dataset slug string. */
+  source: string
   favoritesOnly: boolean
 }
 

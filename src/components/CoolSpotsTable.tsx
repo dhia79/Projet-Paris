@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { CoolSpot, PaginationState, SortState, SortableColumn } from '../types/coolspot'
-import { CATEGORY_BADGE_CLASSES, CATEGORY_LABELS } from '../types/coolspot'
+import { CATEGORY_BADGE_CLASSES, CATEGORY_LABELS, SOURCE_LABELS } from '../types/coolspot'
 import { arrondissementLabel } from '../store/selectors'
 import { PAGE_SIZE_OPTIONS } from '../store/useCoolSpotStore'
 import { SpotDetailsDrawer } from './SpotDetailsDrawer'
@@ -47,6 +47,7 @@ function TableSkeleton() {
           <td className="py-4 px-4"><div className="h-4 rounded skeleton-shimmer w-1/3"></div></td>
           <td className="py-4 px-4"><div className="h-4 rounded skeleton-shimmer w-2/3"></div></td>
           <td className="py-4 px-4"><div className="h-4 rounded skeleton-shimmer w-1/4"></div></td>
+          <td className="py-4 px-4"><div className="h-4 rounded skeleton-shimmer w-1/3"></div></td>
           <td className="py-4 px-4"><div className="h-4 rounded skeleton-shimmer w-16 ml-auto"></div></td>
         </tr>
       ))}
@@ -71,7 +72,6 @@ export function CoolSpotsTable({
   onToggleFavorite,
 }: CoolSpotsTableProps) {
   const [selectedSpot, setSelectedSpot] = useState<CoolSpot | null>(null)
-  const [forceShimmer, setForceShimmer] = useState(false)
 
   const favoritesSet = new Set(favorites)
 
@@ -99,7 +99,7 @@ export function CoolSpotsTable({
     URL.revokeObjectURL(url)
   }
 
-  const isLoadingState = loading || forceShimmer
+  const isLoadingState = loading
 
   return (
     <div data-reveal className="surf border surf-bd rounded-lg p-6 sm:p-8 space-y-6 shadow-sm">
@@ -128,6 +128,7 @@ export function CoolSpotsTable({
                 </button>
               </th>
               <th className="py-3 px-4 font-medium">Statut & horaires</th>
+              <th className="py-3 px-4 font-medium">Source</th>
               <th className="py-3 px-4 text-right font-medium">Actions</th>
             </tr>
           </thead>
@@ -136,7 +137,7 @@ export function CoolSpotsTable({
               <TableSkeleton />
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-sm ink-mute space-y-3">
+                <td colSpan={7} className="py-12 text-center text-sm ink-mute space-y-3">
                   <p className="font-serif-editorial text-lg ink">Aucun refuge trouvé</p>
                   <p className="text-xs max-w-md mx-auto">
                     Aucun site ne correspond à la combinaison de filtres sélectionnée.
@@ -194,6 +195,13 @@ export function CoolSpotsTable({
                       </div>
                     </td>
 
+                    {/* Source dataset */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <span className="px-2 py-0.5 rounded bg-[color:var(--chip-bg)] border surf-bd text-[10px] font-mono-data ink-mute">
+                        {SOURCE_LABELS[spot.source] || spot.source}
+                      </span>
+                    </td>
+
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
@@ -235,12 +243,6 @@ export function CoolSpotsTable({
           </span>
           <button onClick={exportCSV} className="text-[11px] ink-mute acc-hover-text underline decoration-dotted cursor-pointer">
             Exporter en CSV
-          </button>
-          <button
-            onClick={() => setForceShimmer(!forceShimmer)}
-            className="text-[11px] ink-mute acc-hover-text underline decoration-dotted cursor-pointer"
-          >
-            {forceShimmer ? 'Masquer Skeleton' : 'Tester Skeleton'}
           </button>
         </div>
 

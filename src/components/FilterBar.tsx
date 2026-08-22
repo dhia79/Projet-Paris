@@ -6,12 +6,14 @@ import type {
   SortableColumn,
   SortState,
 } from '../types/coolspot'
+import { SOURCE_LABELS } from '../types/coolspot'
 
 export interface FilterBarProps {
   filters: CoolSpotFilter
   sort: SortState
   favoritesCount: number
   availableArrondissements: readonly string[]
+  availableSources: readonly string[]
   disabled: boolean
   onFilterChange: <K extends keyof CoolSpotFilter>(key: K, value: CoolSpotFilter[K]) => void
   onSortChange: (column: SortableColumn) => void
@@ -31,6 +33,7 @@ export function FilterBar({
   sort,
   favoritesCount,
   availableArrondissements,
+  availableSources,
   disabled,
   onFilterChange,
   onSortChange,
@@ -109,6 +112,25 @@ export function FilterBar({
               <option value="ALL">Tous les tarifs</option>
               <option value="FREE">100% Gratuit</option>
               <option value="MUNICIPAL">Tarif Municipal / Payant</option>
+            </select>
+          </div>
+
+          {/* Source Dataset Select */}
+          <div className="flex flex-col">
+            <span className="text-[9px] mb-1">Jeu de données</span>
+            <select
+              id="source-select"
+              value={filters.source}
+              disabled={disabled}
+              onChange={(e) => onFilterChange('source', e.target.value)}
+              className="pb-2 bg-transparent border-b surf-bd focus:acc-bd rounded-none ink-soft focus:outline-none transition-colors cursor-pointer"
+            >
+              <option value="all">Tous les datasets</option>
+              {availableSources.map((src) => (
+                <option key={src} value={src}>
+                  {SOURCE_LABELS[src] || src}
+                </option>
+              ))}
             </select>
           </div>
 

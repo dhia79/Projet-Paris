@@ -19,6 +19,7 @@
   /* Per-slide theme accent. Tweened by active slide selection */
   --accent: #10B981;
   --accent-rgb: 16 185 129;
+  --accent-text: #047857;
   --accent-primary: var(--accent);
   --accent-green: var(--accent);
 
@@ -156,13 +157,13 @@ body, .surf, .surf-bd, .surf-chip, #theme-accent-wash, #ambient-thermal-bg {
 }
 
 /* --- Accent helpers ------------------------------------------------- */
-.acc-text { color: var(--accent); transition: color 1.1s cubic-bezier(0.4, 0, 0.15, 1); }
+.acc-text { color: var(--accent-text); transition: color 1.1s cubic-bezier(0.4, 0, 0.15, 1); }
 .acc-bg { background-color: var(--accent); transition: background-color 1.1s cubic-bezier(0.4, 0, 0.15, 1); }
 .acc-bg-10 { background-color: rgb(var(--accent-rgb) / 0.1); }
 .acc-bd { border-color: var(--accent); transition: border-color 1.1s cubic-bezier(0.4, 0, 0.15, 1); }
 .acc-bd-30 { border-color: rgb(var(--accent-rgb) / 0.3); }
 .acc-bd-40 { border-color: rgb(var(--accent-rgb) / 0.4); }
-.acc-hover-text:hover { color: var(--accent); }
+.acc-hover-text:hover { color: var(--accent-text); }
 .acc-hover-bd:hover { border-color: var(--accent); }
 .acc-hover-bd-40:hover { border-color: rgb(var(--accent-rgb) / 0.4); }
 .acc-focus-bd:focus { border-color: var(--accent); }

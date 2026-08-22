@@ -17,6 +17,7 @@ export const INITIAL_FILTER: CoolSpotFilter = {
   arrondissement: 'all',
   availability: 'ALL',
   price: 'ALL',
+  source: 'all',
   favoritesOnly: false,
 }
 
