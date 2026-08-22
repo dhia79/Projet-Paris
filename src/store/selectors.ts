@@ -17,26 +17,40 @@ export function arrondissementLabel(code: string): string {
   return n === 1 ? '1er' : `${n}e`
 }
 
-export function matchesFilter(spot: CoolSpot, filter: CoolSpotFilter): boolean {
+export function matchesFilter(
+  spot: CoolSpot,
+  filter: CoolSpotFilter,
+  favoritesSet: Set<string> = new Set(),
+): boolean {
   if (filter.category !== 'all' && spot.category !== filter.category) return false
   if (filter.arrondissement !== 'all' && spot.arrondissement !== filter.arrondissement) return false
-  if (filter.isFreeOnly && !spot.isFree) return false
+  if (filter.favoritesOnly && !favoritesSet.has(spot.id)) return false
+
+  if (filter.price === 'FREE' && !spot.isFree) return false
+  if (filter.price === 'MUNICIPAL' && spot.isFree) return false
+
+  if (filter.availability === 'OPEN_NOW' && !spot.isOpenNow) return false
+  if (filter.availability === '247' && !spot.openingHours?.toLowerCase().includes('24h')) return false
 
   const query = fold(filter.query.trim())
   if (!query) return true
-  return fold(`${spot.name} ${spot.address}`).includes(query)
+  return fold(`${spot.name} ${spot.address} ${spot.arrondissement ?? ''}`).includes(query)
 }
 
-export function selectFilteredItems(items: readonly CoolSpot[], filter: CoolSpotFilter): CoolSpot[] {
-  return items.filter((spot) => matchesFilter(spot, filter))
+export function selectFilteredItems(
+  items: readonly CoolSpot[],
+  filter: CoolSpotFilter,
+  favoritesSet: Set<string> = new Set(),
+): CoolSpot[] {
+  return items.filter((spot) => matchesFilter(spot, filter, favoritesSet))
 }
 
 const collator = new Intl.Collator('fr', { sensitivity: 'base', numeric: true })
 
 function compareBy(column: SortState['column'], a: CoolSpot, b: CoolSpot): number {
   switch (column) {
-    case 'isFree':
-      return Number(a.isFree) - Number(b.isFree)
+    case 'canopyScore':
+      return a.canopyScore - b.canopyScore
     case 'arrondissement':
       return collator.compare(a.arrondissement ?? '', b.arrondissement ?? '')
     case 'category':
@@ -48,24 +62,18 @@ function compareBy(column: SortState['column'], a: CoolSpot, b: CoolSpot): numbe
   }
 }
 
-/** Records with no value for the sorted column, so they can be pinned to the end. */
 function isMissing(column: SortState['column'], spot: CoolSpot): boolean {
   return column === 'arrondissement' && spot.arrondissement === null
 }
 
 export function selectSortedItems(items: readonly CoolSpot[], sort: SortState): CoolSpot[] {
   const factor = sort.direction === 'asc' ? 1 : -1
-  // Copy first: sort mutates, and `items` may be the store's array.
   return [...items].sort((a, b) => {
-    // Unknown values are pinned last in *both* directions — reversing the sort
-    // should not push a wall of "—" rows to the top of the table.
     const aMissing = isMissing(sort.column, a)
     const bMissing = isMissing(sort.column, b)
     if (aMissing !== bMissing) return aMissing ? 1 : -1
 
     const primary = compareBy(sort.column, a, b) * factor
-    // Meaningful tie-break: rows sharing an arrondissement or a tariff still
-    // come out alphabetical rather than in raw dataset order.
     return primary !== 0 ? primary : collator.compare(a.name, b.name)
   })
 }
@@ -82,7 +90,6 @@ export function selectPageCount(total: number, pageSize: number): number {
   return Math.max(1, Math.ceil(total / pageSize))
 }
 
-/** Ordered 1er → 20e, restricted to arrondissements actually present in `items`. */
 export function selectStatsByArrondissement(items: readonly CoolSpot[]): ArrondissementStat[] {
   const buckets = new Map<string, ArrondissementStat>()
 
@@ -97,12 +104,13 @@ export function selectStatsByArrondissement(items: readonly CoolSpot[]): Arrondi
         fountain: 0,
         green_space: 0,
         indoor: 0,
+        mist: 0,
       } satisfies ArrondissementStat)
 
     buckets.set(spot.arrondissement, {
       ...current,
       total: current.total + 1,
-      [spot.category]: current[spot.category] + 1,
+      [spot.category]: (current[spot.category] || 0) + 1,
     })
   }
 
@@ -112,8 +120,12 @@ export function selectStatsByArrondissement(items: readonly CoolSpot[]): Arrondi
 export function selectCountsByCategory(
   items: readonly CoolSpot[],
 ): Record<CoolSpotCategory, number> {
-  const counts: Record<CoolSpotCategory, number> = { fountain: 0, green_space: 0, indoor: 0 }
-  for (const spot of items) counts[spot.category] += 1
+  const counts: Record<CoolSpotCategory, number> = { fountain: 0, green_space: 0, indoor: 0, mist: 0 }
+  for (const spot of items) {
+    if (counts[spot.category] !== undefined) {
+      counts[spot.category] += 1
+    }
+  }
   return counts
 }
 
@@ -128,7 +140,9 @@ export function selectActiveFiltersCount(filter: CoolSpotFilter, initial: CoolSp
   if (filter.query.trim() !== initial.query) count += 1
   if (filter.category !== initial.category) count += 1
   if (filter.arrondissement !== initial.arrondissement) count += 1
-  if (filter.isFreeOnly !== initial.isFreeOnly) count += 1
+  if (filter.availability !== initial.availability) count += 1
+  if (filter.price !== initial.price) count += 1
+  if (filter.favoritesOnly !== initial.favoritesOnly) count += 1
   return count
 }
 

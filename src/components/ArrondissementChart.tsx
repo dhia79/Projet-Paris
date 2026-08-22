@@ -1,101 +1,69 @@
-import { useMemo } from 'react'
 import {
-  Bar,
   BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
+  Bar,
   XAxis,
   YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
 } from 'recharts'
-import { CATEGORY_LABELS, type ArrondissementStat, type CoolSpotCategory } from '../types/coolspot'
-import { EmptyState, Skeleton } from './ui'
-
-/** Stack order and colors are declared once so legend, bars and tooltip stay in sync. */
-const SERIES: readonly { key: CoolSpotCategory; color: string }[] = [
-  { key: 'fountain', color: '#0ea5e9' },
-  { key: 'green_space', color: '#10b981' },
-  { key: 'indoor', color: '#8b5cf6' },
-]
+import type { ArrondissementStat } from '../types/coolspot'
 
 export interface ArrondissementChartProps {
   stats: readonly ArrondissementStat[]
   loading: boolean
 }
 
-export function ArrondissementChart({ stats, loading }: ArrondissementChartProps) {
-  // Only render series that actually carry data — avoids a legend full of zeros.
-  const activeSeries = useMemo(
-    () => SERIES.filter(({ key }) => stats.some((stat) => stat[key] > 0)),
-    [stats],
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload || !payload.length) return null
+  const data = payload[0]?.payload
+  return (
+    <div className="surf border surf-bd p-3 rounded-lg shadow-lg font-mono-data text-xs space-y-1.5 min-w-[160px]">
+      <div className="font-bold ink border-b surf-bd pb-1">Paris {label}</div>
+      <div className="text-emerald-700">Parcs: {data.green_space || 0}</div>
+      <div className="text-blue-700">Fontaines: {data.fountain || 0}</div>
+      <div className="text-amber-700">Lieux frais: {(data.indoor || 0) + (data.mist || 0)}</div>
+      <div className="font-bold ink border-t surf-bd pt-1">Total: {data.total}</div>
+    </div>
   )
+}
+
+export function ArrondissementChart({ stats, loading }: ArrondissementChartProps) {
+  if (loading || stats.length === 0) return null
 
   return (
-    <section aria-label="Répartition par arrondissement" className="card p-4">
-      <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900">Répartition par arrondissement</h2>
-          <p className="text-xs text-slate-500">
-            Mise à jour dynamique selon les filtres actifs · {stats.length} arrondissement
-            {stats.length === 1 ? '' : 's'}
-          </p>
+    <section className="surf border surf-bd rounded-lg p-6 space-y-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div className="font-mono-data text-xs acc-text uppercase tracking-wider flex items-center gap-2.5 font-bold">
+          <span className="kicker-mark"></span>
+          Distribution géographique par arrondissement
         </div>
-      </header>
+        <span className="font-mono-data text-[10px] ink-mute uppercase">
+          {stats.length} arrondissements recensés
+        </span>
+      </div>
 
-      {loading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : stats.length === 0 ? (
-        <EmptyState
-          title="Pas de données à représenter"
-          description="Aucun îlot géolocalisé dans un arrondissement ne correspond aux filtres actuels."
-        />
-      ) : (
-        <div className="h-64 w-full sm:h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stats as ArrondissementStat[]} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 11, fill: '#64748b' }}
-                interval={0}
-                axisLine={{ stroke: '#cbd5e1' }}
-                tickLine={false}
-              />
-              <YAxis
-                allowDecimals={false}
-                tick={{ fontSize: 11, fill: '#64748b' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                cursor={{ fill: '#f1f5f9' }}
-                contentStyle={{
-                  borderRadius: 8,
-                  border: '1px solid #e2e8f0',
-                  fontSize: 12,
-                  boxShadow: '0 4px 12px rgb(15 23 42 / 0.08)',
-                }}
-                labelFormatter={(label) => `Paris ${label}`}
-                formatter={(value, name) => [value, String(name)]}
-              />
-              {activeSeries.length > 1 ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
-              {activeSeries.map(({ key, color }, index) => (
-                <Bar
-                  key={key}
-                  dataKey={key}
-                  name={CATEGORY_LABELS[key]}
-                  stackId="spots"
-                  fill={color}
-                  // Round only the top-most bar of the stack.
-                  radius={index === activeSeries.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                  isAnimationActive={false}
-                />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      <div className="h-64 w-full pt-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={[...stats]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <XAxis dataKey="label" stroke="#7A8087" fontSize={11} fontFamily="JetBrains Mono" />
+            <YAxis stroke="#7A8087" fontSize={11} fontFamily="JetBrains Mono" />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend
+              wrapperStyle={{ fontFamily: 'JetBrains Mono', fontSize: '11px', paddingTop: '10px' }}
+              formatter={(value) => {
+                if (value === 'green_space') return 'Parcs & Canopées'
+                if (value === 'fountain') return 'Fontaines'
+                if (value === 'indoor') return 'Lieux Climatisés'
+                return value
+              }}
+            />
+            <Bar dataKey="green_space" stackId="a" fill="#10B981" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="fountain" stackId="a" fill="#3B82F6" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="indoor" stackId="a" fill="#F59E0B" radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </section>
   )
 }

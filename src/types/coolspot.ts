@@ -1,56 +1,68 @@
 /**
- * Unified domain contracts.
+ * Unified domain contracts for Paris Îlots de Fraîcheur.
  *
  * Every heterogeneous Open Data Paris dataset is normalized into `CoolSpot`
- * before it ever reaches the store or the UI. Components never see a raw DTO.
+ * before it ever reaches the store or the UI.
  */
 
-export const COOL_SPOT_CATEGORIES = ['fountain', 'green_space', 'indoor'] as const
+export const COOL_SPOT_CATEGORIES = ['fountain', 'green_space', 'indoor', 'mist'] as const
 export type CoolSpotCategory = (typeof COOL_SPOT_CATEGORIES)[number]
 
 export const CATEGORY_LABELS: Record<CoolSpotCategory, string> = {
-  fountain: 'Fontaine',
-  green_space: 'Espace vert',
-  indoor: 'Lieu frais intérieur',
+  fountain: "Fontaine d'eau",
+  green_space: 'Parc & Canopée',
+  indoor: 'Lieu climatisé',
+  mist: 'Baignade & Brumisateur',
 }
 
-/** Tailwind classes per category, colocated with the domain enum to avoid switch drift. */
 export const CATEGORY_BADGE_CLASSES: Record<CoolSpotCategory, string> = {
-  fountain: 'bg-sky-100 text-sky-800 ring-sky-600/20',
-  green_space: 'bg-emerald-100 text-emerald-800 ring-emerald-600/20',
-  indoor: 'bg-violet-100 text-violet-800 ring-violet-600/20',
+  fountain: 'bg-sky-100 text-sky-800 border border-sky-200',
+  green_space: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+  indoor: 'bg-amber-100 text-amber-800 border border-amber-200',
+  mist: 'bg-cyan-100 text-cyan-800 border border-cyan-200',
 }
+
+export type AvailabilityFilter = 'ALL' | 'OPEN_NOW' | '247'
+export type PriceFilter = 'ALL' | 'FREE' | 'MUNICIPAL'
 
 export interface GeoCoordinates {
   readonly lat: number
   readonly lon: number
 }
 
-/** The single shape the whole application reasons about. */
+/** The single domain entity representation. */
 export interface CoolSpot {
   readonly id: string
   readonly name: string
   readonly category: CoolSpotCategory
-  /** Normalized as `75001`..`75020`, or `null` when the source is unusable. */
+  /** Normalized as `75001`..`75020`, or `null` when unavailable. */
   readonly arrondissement: string | null
   readonly address: string
   readonly isFree: boolean
+  readonly price: 'FREE' | 'MUNICIPAL'
   readonly coordinates: GeoCoordinates | null
   readonly openingHours: string | null
-  /** Dataset slug the record came from — kept for traceability / debugging. */
+  readonly isOpenNow: boolean
+  readonly canopyScore: number
+  readonly waterAccess: boolean
+  readonly shadeLevel: string
+  readonly features: readonly string[]
+  /** Dataset slug the record came from. */
   readonly source: string
 }
 
-export type SortableColumn = 'name' | 'category' | 'arrondissement' | 'address' | 'isFree'
+export type SortableColumn = 'name' | 'category' | 'arrondissement' | 'address' | 'canopyScore'
 export type SortDirection = 'asc' | 'desc'
 
 export interface CoolSpotFilter {
   query: string
-  /** `'all'` means no category constraint. */
+  /** `'all'` means no category constraint, or category name string. */
   category: CoolSpotCategory | 'all'
   /** `'all'` means no arrondissement constraint. */
   arrondissement: string
-  isFreeOnly: boolean
+  availability: AvailabilityFilter
+  price: PriceFilter
+  favoritesOnly: boolean
 }
 
 export interface SortState {
@@ -72,4 +84,5 @@ export interface ArrondissementStat {
   readonly fountain: number
   readonly green_space: number
   readonly indoor: number
+  readonly mist: number
 }

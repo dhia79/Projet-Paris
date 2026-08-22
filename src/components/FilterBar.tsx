@@ -1,164 +1,175 @@
-import { useEffect, useId, useState } from 'react'
-import {
-  CATEGORY_LABELS,
-  COOL_SPOT_CATEGORIES,
-  type CoolSpotFilter,
+import type {
+  AvailabilityFilter,
+  CoolSpotCategory,
+  CoolSpotFilter,
+  PriceFilter,
+  SortableColumn,
+  SortState,
 } from '../types/coolspot'
-import { arrondissementLabel } from '../store/selectors'
-import { useDebouncedValue } from '../hooks/useDebouncedValue'
 
 export interface FilterBarProps {
   filters: CoolSpotFilter
+  sort: SortState
+  favoritesCount: number
   availableArrondissements: readonly string[]
-  activeFiltersCount: number
-  resultCount: number
   disabled: boolean
   onFilterChange: <K extends keyof CoolSpotFilter>(key: K, value: CoolSpotFilter[K]) => void
+  onSortChange: (column: SortableColumn) => void
   onReset: () => void
 }
 
-const CATEGORY_TABS = [
-  { value: 'all' as const, label: 'Tous' },
-  ...COOL_SPOT_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABELS[c] })),
+const CATEGORY_PILLS: { label: string; cat: CoolSpotCategory | 'all' }[] = [
+  { label: 'Tous les Refuges', cat: 'all' },
+  { label: 'Parcs & Canopée', cat: 'green_space' },
+  { label: "Fontaines d'Eau Potable", cat: 'fountain' },
+  { label: 'Lieux Climatisés', cat: 'indoor' },
+  { label: 'Baignade & Brumisateur', cat: 'mist' },
 ]
 
 export function FilterBar({
   filters,
+  sort,
+  favoritesCount,
   availableArrondissements,
-  activeFiltersCount,
-  resultCount,
   disabled,
   onFilterChange,
+  onSortChange,
   onReset,
 }: FilterBarProps) {
-  const searchId = useId()
-  const arrondissementId = useId()
-
-  // Local input state keeps typing at 60fps; the store only sees debounced values.
-  const [draftQuery, setDraftQuery] = useState(filters.query)
-  const debouncedQuery = useDebouncedValue(draftQuery, 250)
-
-  useEffect(() => {
-    onFilterChange('query', debouncedQuery)
-  }, [debouncedQuery, onFilterChange])
-
-  // Re-sync when the store resets the filter from the outside.
-  useEffect(() => {
-    if (filters.query === '') setDraftQuery('')
-  }, [filters.query])
-
   return (
-    <section aria-label="Filtres" className="card p-4">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <label htmlFor={searchId} className="block text-xs font-medium text-slate-600">
-              Recherche
-            </label>
-            <div className="relative mt-1">
-              <span aria-hidden className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center text-slate-400">
-                🔎
-              </span>
-              <input
-                id={searchId}
-                type="search"
-                value={draftQuery}
-                disabled={disabled}
-                onChange={(event) => setDraftQuery(event.target.value)}
-                placeholder="Nom du lieu, rue, avenue…"
-                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm placeholder:text-slate-400 disabled:bg-slate-100"
-              />
-            </div>
-          </div>
+    <div className="surf border surf-bd rounded-lg p-6 sm:p-8 space-y-6 shadow-sm">
+      {/* Top Row: Search & Dropdowns */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-end justify-between gap-5 pb-6 border-b surf-bd">
+        {/* Search input */}
+        <div className="relative flex-1 max-w-md">
+          <label htmlFor="search-input" className="sr-only">
+            Rechercher un îlot de fraîcheur
+          </label>
+          <input
+            id="search-input"
+            type="text"
+            value={filters.query}
+            disabled={disabled}
+            onChange={(e) => onFilterChange('query', e.target.value)}
+            placeholder="Rechercher un nom, une rue, un arrondissement…"
+            className="w-full pb-2 bg-transparent border-b surf-bd focus:acc-bd rounded-none text-sm ink placeholder:ink-mute focus:outline-none transition-colors"
+          />
+        </div>
 
-          <div className="sm:w-56">
-            <label htmlFor={arrondissementId} className="block text-xs font-medium text-slate-600">
-              Arrondissement
-            </label>
+        {/* Filter Selectors */}
+        <div className="flex flex-wrap items-end gap-6 font-mono-data text-[11px] ink-mute uppercase tracking-wide">
+          {/* Arrondissement Select */}
+          <div className="flex flex-col">
+            <span className="text-[9px] mb-1">Arrondissement</span>
             <select
-              id={arrondissementId}
+              id="arr-select"
               value={filters.arrondissement}
               disabled={disabled}
-              onChange={(event) => onFilterChange('arrondissement', event.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
+              onChange={(e) => onFilterChange('arrondissement', e.target.value)}
+              className="pb-2 bg-transparent border-b surf-bd focus:acc-bd rounded-none ink-soft focus:outline-none transition-colors cursor-pointer"
             >
               <option value="all">Tous les arrondissements</option>
-              {availableArrondissements.map((code) => (
-                <option key={code} value={code}>
-                  Paris {arrondissementLabel(code)} ({code})
-                </option>
-              ))}
+              {availableArrondissements.map((arr) => {
+                const n = Number(arr.slice(-2))
+                return (
+                  <option key={arr} value={arr}>
+                    {arr} — Paris {n === 1 ? '1er' : `${n}e`}
+                  </option>
+                )
+              })}
             </select>
           </div>
 
-          <label className="flex cursor-pointer select-none items-center gap-2 sm:pb-2">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={filters.isFreeOnly}
+          {/* Availability Select */}
+          <div className="flex flex-col">
+            <span className="text-[9px] mb-1">Disponibilité</span>
+            <select
+              id="avail-select"
+              value={filters.availability}
               disabled={disabled}
-              onClick={() => onFilterChange('isFreeOnly', !filters.isFreeOnly)}
-              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
-                filters.isFreeOnly ? 'bg-cool-600' : 'bg-slate-300'
-              }`}
+              onChange={(e) => onFilterChange('availability', e.target.value as AvailabilityFilter)}
+              className="pb-2 bg-transparent border-b surf-bd focus:acc-bd rounded-none ink-soft focus:outline-none transition-colors cursor-pointer"
             >
-              <span
-                aria-hidden
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                  filters.isFreeOnly ? 'translate-x-[1.375rem]' : 'translate-x-0.5'
-                }`}
-              />
-            </button>
-            <span className="text-sm text-slate-700">Gratuit uniquement</span>
-          </label>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div role="tablist" aria-label="Catégories" className="flex flex-wrap gap-1.5">
-            {CATEGORY_TABS.map((tab) => {
-              const selected = filters.category === tab.value
-              return (
-                <button
-                  key={tab.value}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  disabled={disabled}
-                  onClick={() => onFilterChange('category', tab.value)}
-                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
-                    selected
-                      ? 'bg-cool-600 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              )
-            })}
+              <option value="ALL">Tous les horaires</option>
+              <option value="OPEN_NOW">Ouvert actuellement</option>
+              <option value="247">Accessible 24h/24</option>
+            </select>
           </div>
 
-          <div className="ml-auto flex items-center gap-3">
-            <p aria-live="polite" className="text-sm text-slate-600">
-              <span className="font-semibold tabular-nums text-slate-900">
-                {resultCount.toLocaleString('fr-FR')}
-              </span>{' '}
-              résultat{resultCount === 1 ? '' : 's'}
-            </p>
-            {activeFiltersCount > 0 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftQuery('')
-                  onReset()
-                }}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Réinitialiser ({activeFiltersCount})
-              </button>
-            ) : null}
+          {/* Price Select */}
+          <div className="flex flex-col">
+            <span className="text-[9px] mb-1">Tarif</span>
+            <select
+              id="price-select"
+              value={filters.price}
+              disabled={disabled}
+              onChange={(e) => onFilterChange('price', e.target.value as PriceFilter)}
+              className="pb-2 bg-transparent border-b surf-bd focus:acc-bd rounded-none ink-soft focus:outline-none transition-colors cursor-pointer"
+            >
+              <option value="ALL">Tous les tarifs</option>
+              <option value="FREE">100% Gratuit</option>
+              <option value="MUNICIPAL">Tarif Municipal / Payant</option>
+            </select>
           </div>
+
+          {/* Favorites-only Toggle */}
+          <button
+            id="btn-favorites-only"
+            disabled={disabled}
+            onClick={() => onFilterChange('favoritesOnly', !filters.favoritesOnly)}
+            className={`pb-2 transition-colors cursor-pointer ${
+              filters.favoritesOnly ? 'acc-text font-bold border-b-2 acc-bd' : 'ink-mute hover:ink'
+            }`}
+          >
+            ★ Favoris {favoritesCount > 0 ? `(${favoritesCount})` : ''}
+          </button>
+
+          {/* Reset button */}
+          <button
+            id="btn-reset"
+            disabled={disabled}
+            onClick={onReset}
+            className="pb-2 ink-mute hover:ink transition-colors cursor-pointer"
+          >
+            Réinitialiser
+          </button>
         </div>
       </div>
-    </section>
+
+      {/* Bottom Row: Category Pills & Sort Dropdown */}
+      <div className="flex flex-wrap items-center justify-between gap-5">
+        <div id="category-pills" className="flex flex-wrap items-center gap-x-6 gap-y-2 font-mono-data text-xs">
+          {CATEGORY_PILLS.map((pill) => {
+            const isActive = filters.category === pill.cat
+            return (
+              <button
+                key={pill.cat}
+                onClick={() => onFilterChange('category', pill.cat)}
+                className={`pill-btn pb-1 border-b-2 transition-colors cursor-pointer ${
+                  isActive ? 'acc-bd acc-text font-bold' : 'border-transparent ink-mute hover:ink'
+                }`}
+              >
+                {pill.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Sort dropdown */}
+        <div className="flex items-center gap-2 text-xs font-mono-data ink-mute">
+          <span className="uppercase tracking-wide">Trier par</span>
+          <select
+            id="sort-select"
+            value={sort.column}
+            onChange={(e) => onSortChange(e.target.value as SortableColumn)}
+            className="bg-transparent ink-soft focus:outline-none cursor-pointer"
+          >
+            <option value="canopyScore">Indice de Fraîcheur</option>
+            <option value="name">Nom (A → Z)</option>
+            <option value="arrondissement">Arrondissement</option>
+          </select>
+        </div>
+      </div>
+    </div>
   )
 }

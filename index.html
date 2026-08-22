@@ -1,13 +1,49 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Îlots de Fraîcheur · Paris</title>
-    <meta name="description" content="Trouvez les îlots de fraîcheur à Paris pendant les vagues de chaleur." />
-  </head>
-  <body class="bg-slate-50">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paris Îlots de Fraîcheur — Cartographie des Anomalies Climatiques & Index des Refuges</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'><rect width='32' height='32' rx='6' fill='%230F131C'/><g><rect x='6' y='19' width='2.6' height='7' fill='%234292C6'/><rect x='9.4' y='15' width='2.6' height='11' fill='%239ECAE1'/><rect x='12.8' y='17' width='2.6' height='9' fill='%23F7F7F7'/><rect x='16.2' y='12' width='2.6' height='14' fill='%23FB6A4A'/><rect x='19.6' y='8' width='2.6' height='18' fill='%23CB181D'/><rect x='23' y='5' width='2.6' height='21' fill='%2367000D'/></g></svg>">
+  <meta name="description" content="Application Open Data d'aide à la recherche d'îlots de fraîcheur à Paris : fontaines à boire, espaces verts ombragés, lieux climatisés et bassins de baignade lors des vagues de chaleur.">
+  <meta name="theme-color" content="#F7F5F0">
+  <meta name="color-scheme" content="light">
+
+  <!-- Open Graph / social preview -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Paris Îlots de Fraîcheur — Cartographie des Anomalies Climatiques & Index des Refuges">
+  <meta property="og:description" content="172 ans d'anomalies de température à Paris, croisés avec l'index Open Data des fontaines, parcs et lieux climatisés pour trouver un refuge frais en période de canicule.">
+  <meta property="og:locale" content="fr_FR">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Paris Îlots de Fraîcheur">
+  <meta name="twitter:description" content="Cartographie interactive des refuges frais de Paris — fontaines, parcs ombragés et lieux climatisés.">
+
+  <!-- Structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    "name": "Paris Îlots de Fraîcheur",
+    "description": "Cartographie interactive des refuges frais de Paris pendant les vagues de chaleur : fontaines d'eau potable, parcs ombragés, lieux climatisés et zones de baignade, croisés avec 172 ans d'anomalies de température parisiennes.",
+    "url": "https://example.org/paris-ilots-de-fraicheur",
+    "inLanguage": "fr",
+    "creator": { "@type": "Organization", "name": "Ville de Paris — Open Data" },
+    "spatialCoverage": { "@type": "Place", "name": "Paris, France" },
+    "keywords": ["îlots de fraîcheur", "canicule", "Paris", "open data", "fontaines", "espaces verts"]
+  }
+  </script>
+
+  <!-- Google Fonts: Fraunces (Editorial Serif), JetBrains Mono, Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+ 
+  <!-- CDNs: GSAP, Lenis -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://unpkg.com/lenis@1.1.9/dist/lenis.min.js"></script>
+</head>
+<body class="min-h-screen relative overflow-x-hidden selection:bg-emerald-500 selection:text-black">
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
 </html>
