@@ -1,0 +1,6 @@
+# Runtime dependencies for the ingestion pipeline.
+# Airflow itself is provided by the Composer image / the docker-compose service.
+requests>=2.32,<3
+PyMySQL>=1.1,<2
+google-cloud-bigquery>=3.25,<4
+pendulum>=3.0,<4
