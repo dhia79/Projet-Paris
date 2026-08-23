@@ -112,9 +112,9 @@ export function EmergencyWizardModal() {
 
               <button
                 onClick={() => handleNextUsage('mist')}
-                className="p-3 bg-[color:var(--chip-bg)] border surf-bd hover:border-cyan-400 rounded-xl text-left font-mono-data text-xs space-y-1.5 transition-all cursor-pointer"
+                className="p-3 bg-[color:var(--chip-bg)] border surf-bd hover:border-purple-400 rounded-xl text-left font-mono-data text-xs space-y-1.5 transition-all cursor-pointer"
               >
-                <div className="text-cyan-700 font-bold flex items-center gap-2">
+                <div className="text-purple-700 font-bold flex items-center gap-2">
                   <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="8" rx="6.5" ry="4"/><path d="M5.5 8v6c0 2.2 2.9 4 6.5 4s6.5-1.8 6.5-4V8"/></svg>
                   Baignade & brume
                 </div>

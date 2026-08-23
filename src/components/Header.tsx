@@ -97,7 +97,7 @@ export function Header() {
     <>
       {/* Top Editorial Sticky Header */}
       <header className="w-full border-b surf-bd surf/90 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
 
           {/* Masthead Lockup — returns to the top of the report */}
           <button
@@ -210,7 +210,7 @@ export function Header() {
       </header>
 
       {/* Editorial Title & Context Block */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-8 pt-10 pb-6 space-y-6">
+      <section className="max-w-[1440px] mx-auto px-4 sm:px-8 pt-10 pb-6 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-2">
             <div className="font-mono-data text-xs acc-text font-bold tracking-widest uppercase flex items-center gap-2.5">

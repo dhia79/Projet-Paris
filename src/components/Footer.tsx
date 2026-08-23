@@ -4,7 +4,7 @@ export function Footer() {
   }
 
   return (
-    <footer className="max-w-7xl mx-auto px-4 sm:px-8 pt-10 pb-14">
+    <footer className="max-w-[1440px] mx-auto px-4 sm:px-8 pt-10 pb-14">
       <div data-reveal className="border-t surf-bd pt-8 grid grid-cols-1 sm:grid-cols-3 gap-8 font-mono-data text-xs ink-mute">
         <div className="space-y-2">
           <div className="flex items-center gap-2.5 acc-text uppercase tracking-wider font-semibold">

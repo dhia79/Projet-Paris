@@ -19,7 +19,7 @@ export const CATEGORY_BADGE_CLASSES: Record<CoolSpotCategory, string> = {
   fountain: 'bg-sky-100 text-sky-800 border border-sky-200',
   green_space: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
   indoor: 'bg-slate-100 text-slate-600 border border-slate-200',
-  mist: 'bg-cyan-100 text-cyan-800 border border-cyan-200',
+  mist: 'bg-purple-100 text-purple-800 border border-purple-200',
 }
 
 export type AvailabilityFilter = 'ALL' | 'OPEN_NOW' | '247'
