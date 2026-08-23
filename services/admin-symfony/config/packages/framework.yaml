@@ -1,0 +1,8 @@
+framework:
+  secret: '%env(APP_SECRET)%'
+  # The React dashboard is the only client and it holds no session; a stateless
+  # JSON service should not be handing out cookies.
+  session: false
+  http_method_override: false
+  php_errors:
+    log: true

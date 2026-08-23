@@ -1,0 +1,11 @@
+api_platform:
+  title: Projet Paris - Signalements citoyens
+  description: Citizen reports and back-office for the cool-spot dashboard
+  version: 1.0.0
+  formats:
+    jsonld: ['application/ld+json']
+    json: ['application/json']
+  defaults:
+    stateless: true
+    pagination_items_per_page: 30
+    pagination_client_items_per_page: true

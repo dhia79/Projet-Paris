@@ -1,0 +1,106 @@
+---
+title: "Paris — Couverture des îlots de fraîcheur"
+subtitle: "Exploration par arrondissement"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+params:
+  db_host: "127.0.0.1"
+  db_port: 3306
+  db_name: "paris_fraicheur"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 9)
+
+suppressPackageStartupMessages({
+  library(DBI); library(RMariaDB); library(dplyr); library(ggplot2); library(scales)
+})
+```
+
+```{r connect}
+# The password is never a parameter: RStudio saves the knit parameters with the
+# document, and a committed .Rmd would carry the credential with it.
+con <- dbConnect(
+  RMariaDB::MariaDB(),
+  host = params$db_host, port = params$db_port, dbname = params$db_name,
+  user = Sys.getenv("DB_USER", "paris_analytics"),
+  password = Sys.getenv("DB_PASSWORD")
+)
+knitr::knit_hooks$set(document = function(x) { dbDisconnect(con); x })
+
+spots <- dbGetQuery(con, "
+  SELECT s.id, s.category, s.arrondissement, s.canopy_score, s.water_access,
+         s.is_free, a.label, a.area_km2, a.population
+  FROM cool_spots s
+  JOIN arrondissements a ON a.code = s.arrondissement")
+
+scores <- dbGetQuery(con, "
+  SELECT s.*, a.label
+  FROM arrondissement_scores s
+  JOIN arrondissements a ON a.code = s.code
+  WHERE s.computed_on = (SELECT MAX(computed_on) FROM arrondissement_scores)")
+```
+
+## Combien de lieux, et où ?
+
+```{r inventory}
+by_arr <- spots %>%
+  count(label, category) %>%
+  mutate(label = factor(label, levels = unique(label[order(as.integer(sub("e|er", "", label)))])))
+
+ggplot(by_arr, aes(x = label, y = n, fill = category)) +
+  geom_col() +
+  scale_fill_brewer(palette = "Set2", name = "Catégorie") +
+  labs(x = NULL, y = "Nombre de lieux",
+       title = "Inventaire des îlots de fraîcheur par arrondissement") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Densité contre qualité
+
+Deux arrondissements peuvent afficher le même nombre de lieux sans offrir le
+même confort : c'est l'écart entre la densité et le score de canopée.
+
+```{r density-quality}
+summary_arr <- spots %>%
+  group_by(label, area_km2) %>%
+  summarise(n = n(), canopy = mean(canopy_score), .groups = "drop") %>%
+  mutate(per_km2 = n / area_km2)
+
+ggplot(summary_arr, aes(x = per_km2, y = canopy, label = label)) +
+  geom_point(aes(size = n), colour = "#0ea5e9", alpha = 0.75) +
+  geom_text(vjust = -1, size = 3) +
+  scale_size_continuous(name = "Lieux", range = c(2, 9)) +
+  labs(x = "Lieux par km²", y = "Score de canopée moyen",
+       title = "Densité et qualité ne vont pas de pair") +
+  theme_minimal(base_size = 12)
+```
+
+## Indice de vulnérabilité
+
+Calculé par `vulnerability_index.R` : 100 signifie l'arrondissement le moins
+bien couvert pendant une canicule.
+
+```{r vulnerability}
+ggplot(scores, aes(x = reorder(label, vulnerability_index), y = vulnerability_index,
+                   fill = factor(cluster))) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_brewer(palette = "YlOrRd", name = "Groupe") +
+  labs(x = NULL, y = "Indice de vulnérabilité",
+       title = "Arrondissements les plus exposés à la chaleur") +
+  theme_minimal(base_size = 12)
+```
+
+```{r table}
+scores %>%
+  arrange(desc(vulnerability_index)) %>%
+  select(Arrondissement = label, `Lieux / km²` = spots_per_km2,
+         `Canopée` = mean_canopy_score, `Indice` = vulnerability_index,
+         `Groupe` = cluster) %>%
+  knitr::kable(digits = 2)
+```
