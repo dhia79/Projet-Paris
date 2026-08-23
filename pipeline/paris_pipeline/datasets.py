@@ -6,8 +6,9 @@ same shape the front-end registry used, so the two stay comparable.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Sequence
+from typing import Any
 
 from .normalize import CoolSpot, adapt_cool_facility, adapt_fountain, adapt_green_space
 

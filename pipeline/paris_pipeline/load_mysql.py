@@ -11,9 +11,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Any, Iterable, Iterator, Sequence
+from datetime import UTC, datetime
+from typing import Any
 
 import pymysql
 from pymysql.cursors import Cursor
@@ -173,6 +174,6 @@ def record_run(
             raw_count,
             normalized_count,
             (error or "")[:512] or None,
-            datetime.now(timezone.utc),
+            datetime.now(UTC),
         ),
     )

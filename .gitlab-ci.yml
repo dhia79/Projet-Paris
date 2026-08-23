@@ -1,0 +1,141 @@
+# =============================================================================
+#  Projet Paris - CI/CD
+#
+#  lint -> test -> build -> deploy
+#
+#  Required CI/CD variables (Settings > CI/CD > Variables):
+#    GCP_PROJECT_ID   - the Google Cloud project id
+#    GCP_SA_KEY       - service-account JSON, masked and protected (file type)
+#  Deploy runs on the default branch only, and is manual: an App Engine promote
+#  should be a decision, not a side effect of merging.
+# =============================================================================
+
+stages:
+  - lint
+  - test
+  - build
+  - deploy
+
+default:
+  interruptible: true
+
+variables:
+  GIT_DEPTH: "20"
+
+# --------------------------------------------------------------- frontend ---
+.frontend:
+  image: node:22-bookworm-slim
+  before_script:
+    - cd frontend
+    - npm ci --no-audit --no-fund
+  cache:
+    key:
+      files:
+        - frontend/package-lock.json
+    paths:
+      - frontend/node_modules/
+
+frontend:typecheck:
+  extends: .frontend
+  stage: lint
+  script:
+    - npm run lint
+  rules:
+    - changes: [frontend/**/*]
+
+frontend:build:
+  extends: .frontend
+  stage: build
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/dist/
+    expire_in: 1 week
+  rules:
+    - changes: [frontend/**/*]
+
+# ------------------------------------------------------------------- Go -----
+go:test:
+  image: golang:1.23-bookworm
+  stage: test
+  before_script:
+    - cd services/api-go
+  script:
+    - gofmt -l . | tee /tmp/fmt.out
+    # gofmt reports by printing filenames; a non-empty report is the failure.
+    - test ! -s /tmp/fmt.out
+    - go vet ./...
+    - go test ./... -race -coverprofile=coverage.out
+    - go tool cover -func=coverage.out | tail -1
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  cache:
+    key: go-mod
+    paths:
+      - .go/pkg/mod/
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+  rules:
+    - changes: [services/api-go/**/*]
+
+go:build-image:
+  image: docker:27
+  services: [docker:27-dind]
+  stage: build
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE/api-go:$CI_COMMIT_SHORT_SHA" services/api-go
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker push "$CI_REGISTRY_IMAGE/api-go:$CI_COMMIT_SHORT_SHA"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: [services/api-go/**/*]
+
+# --------------------------------------------------------------- pipeline ---
+pipeline:test:
+  image: python:3.12-bookworm
+  stage: test
+  before_script:
+    - cd pipeline
+    - pip install --quiet -r requirements-dev.txt
+  script:
+    - ruff check .
+    - pytest --cov=paris_pipeline --cov-report=term-missing
+  rules:
+    - changes: [pipeline/**/*]
+
+# ---------------------------------------------------------------- Symfony ---
+symfony:test:
+  image: php:8.3-cli-bookworm
+  stage: test
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends git unzip libicu-dev
+    - docker-php-ext-install intl
+    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+    - cd services/admin-symfony
+    - composer install --no-interaction --prefer-dist
+  script:
+    - vendor/bin/phpunit
+  rules:
+    - changes: [services/admin-symfony/**/*]
+
+# ----------------------------------------------------------------- deploy ---
+deploy:frontend:
+  image: google/cloud-sdk:alpine
+  stage: deploy
+  needs: ["frontend:build"]
+  script:
+    - echo "$GCP_SA_KEY" > /tmp/sa.json
+    - gcloud auth activate-service-account --key-file /tmp/sa.json
+    - gcloud config set project "$GCP_PROJECT_ID"
+    - cd frontend
+    - gcloud app deploy app.yaml --quiet --version "$CI_COMMIT_SHORT_SHA" --promote
+  after_script:
+    # The key is written to the runner's disk; do not leave it there.
+    - rm -f /tmp/sa.json
+  environment:
+    name: production
+    url: https://$GCP_PROJECT_ID.ew.r.appspot.com
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: false

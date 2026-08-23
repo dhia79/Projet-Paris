@@ -12,8 +12,9 @@ client-side path to the API does not silently change its id or its score.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 
 Category = Literal["fountain", "green_space", "indoor", "mist"]
 

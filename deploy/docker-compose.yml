@@ -1,0 +1,175 @@
+# =============================================================================
+#  Local development stack.
+#
+#    docker compose --env-file .env up -d
+#
+#  Brings up MySQL, the Go API, the Symfony back-office, Airflow and Metabase.
+#  Everything runs on Debian-based images, matching what is deployed on GCP.
+#  Copy .env.example to .env first -- there are no default passwords here.
+# =============================================================================
+
+name: projet-paris
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.10.2-python3.12
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+    # The DAGs import `paris_pipeline`, which is mounted next to them.
+    PYTHONPATH: /opt/airflow/pipeline
+    DB_HOST: mysql
+    DB_PORT: "3306"
+    DB_USER: ${MYSQL_USER}
+    DB_PASSWORD: ${MYSQL_PASSWORD}
+    DB_NAME: ${MYSQL_DATABASE}
+    GCP_PROJECT: ${GCP_PROJECT:-}
+    BQ_DATASET: ${BQ_DATASET:-paris_fraicheur}
+    GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/keys/gcp-sa.json
+    _PIP_ADDITIONAL_REQUIREMENTS: PyMySQL>=1.1 google-cloud-bigquery>=3.25
+  volumes:
+    - ../pipeline/airflow/dags:/opt/airflow/dags:ro
+    - ../pipeline/paris_pipeline:/opt/airflow/pipeline/paris_pipeline:ro
+    - airflow-logs:/opt/airflow/logs
+    # Optional: drop a service-account key here to enable the BigQuery task.
+    - ./keys:/opt/airflow/keys:ro
+  depends_on:
+    airflow-db:
+      condition: service_healthy
+    mysql:
+      condition: service_healthy
+
+services:
+  # ---------------------------------------------------------------- MySQL ---
+  mysql:
+    image: mysql:8.0-debian
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # Files in this directory run in name order on an empty data volume.
+      - ../pipeline/sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # ------------------------------------------------------------- Go API ----
+  api:
+    build:
+      context: ../services/api-go
+    environment:
+      PORT: "8080"
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    # No healthcheck: the runtime image is distroless-thin by design and ships
+    # no curl or wget to probe /healthz with. Compose restarts it on exit, and
+    # /readyz is there for the platform probe in GCP.
+    restart: unless-stopped
+
+  # -------------------------------------------------------- Symfony admin --
+  admin:
+    build:
+      context: ../services/admin-symfony
+    environment:
+      APP_ENV: dev
+      APP_SECRET: ${SYMFONY_SECRET}
+      DATABASE_URL: "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?serverVersion=8.0&charset=utf8mb4"
+      CORS_ALLOW_ORIGIN: '^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$$'
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ------------------------------------------------------------- Airflow ---
+  airflow-db:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 10
+      start_period: 20s
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username "${AIRFLOW_USERNAME:-airflow}" \
+          --password "${AIRFLOW_PASSWORD}" \
+          --firstname Data --lastname Platform \
+          --role Admin --email admin@example.com || true
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8081:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ------------------------------------------------------------ Metabase ---
+  metabase:
+    image: metabase/metabase:latest
+    ports:
+      - "3000:3000"
+    environment:
+      # Metabase keeps its own application database separate from the data it
+      # reads; pointing it at paris_fraicheur would mix the two.
+      MB_DB_TYPE: h2
+      MB_DB_FILE: /metabase-data/metabase.db
+      JAVA_TIMEZONE: Europe/Paris
+    volumes:
+      - metabase-data:/metabase-data
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  airflow-db-data:
+  airflow-logs:
+  metabase-data:

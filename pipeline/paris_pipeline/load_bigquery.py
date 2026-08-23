@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Sequence
 from datetime import date
-from typing import Any, Sequence
+from typing import Any
 
 from google.cloud import bigquery
 

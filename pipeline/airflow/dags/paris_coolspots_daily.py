@@ -90,23 +90,22 @@ def paris_coolspots_daily() -> None:
         run_id = context["run_id"]
         all_ids: list[str] = []
 
-        with load_mysql.connect() as conn:
-            with conn.cursor() as cursor:
-                for result in results:
-                    slug = result["slug"]
-                    spots = dedupe(_rehydrate(result["spots"]))
+        with load_mysql.connect() as conn, conn.cursor() as cursor:
+            for result in results:
+                slug = result["slug"]
+                spots = dedupe(_rehydrate(result["spots"]))
 
-                    load_mysql.upsert_spots(cursor, spots)
-                    load_mysql.sweep_removed(cursor, slug, (s.id for s in spots))
-                    load_mysql.record_run(
-                        cursor,
-                        run_id=run_id,
-                        source=slug,
-                        status="ok",
-                        raw_count=result["raw_count"],
-                        normalized_count=len(spots),
-                    )
-                    all_ids.extend(s.id for s in spots)
+                load_mysql.upsert_spots(cursor, spots)
+                load_mysql.sweep_removed(cursor, slug, (s.id for s in spots))
+                load_mysql.record_run(
+                    cursor,
+                    run_id=run_id,
+                    source=slug,
+                    status="ok",
+                    raw_count=result["raw_count"],
+                    normalized_count=len(spots),
+                )
+                all_ids.extend(s.id for s in spots)
 
         log.info("MySQL load complete: %d spot(s) across %d dataset(s)", len(all_ids), len(results))
         return all_ids
@@ -142,17 +141,16 @@ def _record_failure(run_id: str, slug: str, error: str) -> None:
     fetch error is the one worth propagating.
     """
     try:
-        with load_mysql.connect() as conn:
-            with conn.cursor() as cursor:
-                load_mysql.record_run(
-                    cursor,
-                    run_id=run_id,
-                    source=slug,
-                    status="failed",
-                    raw_count=0,
-                    normalized_count=0,
-                    error=error,
-                )
+        with load_mysql.connect() as conn, conn.cursor() as cursor:
+            load_mysql.record_run(
+                cursor,
+                run_id=run_id,
+                source=slug,
+                status="failed",
+                raw_count=0,
+                normalized_count=0,
+                error=error,
+            )
     except Exception:  # noqa: BLE001 - deliberately swallowed, see docstring
         log.exception("could not record the failure of %s", slug)
 

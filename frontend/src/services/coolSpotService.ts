@@ -2,6 +2,7 @@ import type { CoolSpot } from '../types/coolspot'
 import type { CoolFacilityDTO, FountainDTO, GreenSpaceDTO } from '../types/opendata'
 import { fetchDataset, OpenDataError } from './openDataClient'
 import { adaptCoolFacility, adaptFountain, adaptGreenSpace } from './normalizers'
+import { fetchCoolSpotsFromApi, isApiConfigured } from './apiClient'
 import { logger } from '../lib/logger'
 
 /** Declarative dataset registry — adding a source is a single entry, no branching. */
@@ -115,12 +116,38 @@ function dedupe(items: readonly CoolSpot[]): CoolSpot[] {
 }
 
 /**
- * Fetches every configured dataset in parallel, normalizes each into `CoolSpot`,
- * and merges the results. Optional datasets degrade gracefully; if every
- * *required* dataset fails, the error is propagated to the store.
+ * Loads the unified dataset.
+ *
+ * Prefers the Go backend when `VITE_API_BASE_URL` is configured: the data is
+ * already normalized there by the Airflow pipeline, which runs the very same
+ * rules this module applies in the browser. Without a backend — a fresh clone,
+ * a preview build, the API down — it falls back to reading Open Data Paris
+ * directly, so the dashboard is never blocked on infrastructure.
  */
 export async function fetchAllCoolSpots(signal?: AbortSignal): Promise<CoolSpotLoadResult> {
-  return logger.group('adapter', 'fetchAllCoolSpots — aggregate + normalize', async () => {
+  if (isApiConfigured) {
+    try {
+      const { items, reports } = await fetchCoolSpotsFromApi(signal)
+      return { items, reports }
+    } catch (error) {
+      if (signal?.aborted) throw error
+      logger.warn(
+        'api',
+        `backend unavailable, falling back to Open Data Paris: ${(error as Error).message}`,
+      )
+    }
+  }
+
+  return fetchFromOpenData(signal)
+}
+
+/**
+ * The original browser-side path: fetch every dataset in parallel, normalize
+ * each into `CoolSpot`, merge. Optional datasets degrade gracefully; if every
+ * *required* dataset fails, the error is propagated to the store.
+ */
+async function fetchFromOpenData(signal?: AbortSignal): Promise<CoolSpotLoadResult> {
+  return logger.group('adapter', 'fetchFromOpenData — aggregate + normalize', async () => {
     const descriptors = [FOUNTAINS, GREEN_SPACES, COOL_FACILITIES] as const
 
     const settled = await Promise.all([
