@@ -1,0 +1,22 @@
+# Google App Engine — static hosting for the Vite build (replaces Firebase Hosting).
+# Deploy:  npm run deploy
+runtime: nodejs22
+env: standard
+
+handlers:
+  - url: /assets
+    static_dir: dist/assets
+    secure: always
+    http_headers:
+      Cache-Control: "public, max-age=31536000, immutable"
+
+  - url: /(.*\.(ico|png|svg|webp|txt|json))$
+    static_files: dist/\1
+    upload: dist/.*\.(ico|png|svg|webp|txt|json)$
+    secure: always
+
+  # SPA fallback
+  - url: /.*
+    static_files: dist/index.html
+    upload: dist/index\.html
+    secure: always

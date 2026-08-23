@@ -9,10 +9,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "deploy": "npm run build && firebase deploy --only hosting"
+    "deploy": "npm run build && gcloud app deploy app.yaml"
   },
   "dependencies": {
-    "firebase": "^12.18.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "recharts": "^2.15.0",

@@ -3,5 +3,12 @@ dist/
 .env
 .env.local
 *.log
-.firebase/
 .DS_Store
+.env
+vendor/
+__pycache__/
+*.pyc
+.venv/
+services/api-go/bin/
+analytics/r/out/
+pipeline/airflow/logs/
