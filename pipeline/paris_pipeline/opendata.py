@@ -1,7 +1,12 @@
 """Client for the Open Data Paris Explore API v2.1.
 
 Server-side twin of ``frontend/src/services/openDataClient.ts``: same paging
-contract, but it runs in Airflow where a 20k-row payload is unremarkable.
+contract, but it runs in a batch job where a large payload is unremarkable.
+
+Two access modes, because the datasets differ by two orders of magnitude:
+``fetch_dataset`` pages the records endpoint (fine up to a few thousand rows),
+and ``export_dataset`` hits the bulk export endpoint, which returns a whole
+dataset in one response -- the only sane way to read the ~200k Paris trees.
 """
 
 from __future__ import annotations
@@ -36,7 +41,13 @@ class OpenDataError(RuntimeError):
         self.status = status
 
 
-def _get_with_retry(session: requests.Session, url: str, params: dict[str, Any], dataset: str) -> dict[str, Any]:
+def _get_with_retry(
+    session: requests.Session,
+    url: str,
+    params: dict[str, Any],
+    dataset: str,
+    timeout: tuple[int, int] = REQUEST_TIMEOUT,
+) -> Any:
     """GET with bounded exponential backoff.
 
     Only transient conditions are retried; a 4xx is a bug in our request and
@@ -46,7 +57,7 @@ def _get_with_retry(session: requests.Session, url: str, params: dict[str, Any],
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            response = session.get(url, params=params, timeout=REQUEST_TIMEOUT)
+            response = session.get(url, params=params, timeout=timeout)
             if response.status_code == 429 or response.status_code >= 500:
                 raise OpenDataError(dataset, f"HTTP {response.status_code}", response.status_code)
             if not response.ok:
@@ -102,6 +113,43 @@ def fetch_dataset(
                 break
 
         log.info("%s: fetched %d record(s)", slug, len(records))
+        return records
+    finally:
+        if owns_session:
+            session.close()
+
+
+def export_dataset(
+    slug: str,
+    select: Sequence[str] | None = None,
+    where: str | None = None,
+    session: requests.Session | None = None,
+) -> list[dict[str, Any]]:
+    """Download an entire dataset through the bulk export endpoint.
+
+    Paging ``les-arbres`` 100 rows at a time would be ~2 100 requests. The
+    export endpoint answers the same query in one, and is the documented way to
+    pull a full dataset.
+
+    ``select`` is not optional in practice: the tree dataset carries two dozen
+    columns and we want two of them.
+    """
+    owns_session = session is None
+    session = session or requests.Session()
+    url = f"{BASE_URL}/{slug}/exports/json"
+
+    params: dict[str, Any] = {}
+    if select:
+        params["select"] = ",".join(select)
+    if where:
+        params["where"] = where
+
+    try:
+        # A longer read timeout than the paged path: this is one big response,
+        # and the server streams it while it assembles.
+        payload = _get_with_retry(session, url, params, slug, timeout=(10, 180))
+        records = payload if isinstance(payload, list) else payload.get("results", [])
+        log.info("%s: exported %d record(s)", slug, len(records))
         return records
     finally:
         if owns_session:

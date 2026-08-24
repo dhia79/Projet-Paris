@@ -43,9 +43,12 @@ func run(log *slog.Logger) error {
 	defer repo.Close()
 	log.Info("connected to mysql")
 
+	api := httpapi.New(repo, log, cfg.TrustProxy)
+	defer api.Close()
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.New(repo, log).Routes(cfg.AllowedOrigins),
+		Handler:           api.Routes(cfg.AllowedOrigins),
 		ReadHeaderTimeout: cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,
 		IdleTimeout:       60 * time.Second,

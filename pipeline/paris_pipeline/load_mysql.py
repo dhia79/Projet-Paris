@@ -13,7 +13,7 @@ import logging
 import os
 from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pymysql
@@ -177,3 +177,56 @@ def record_run(
             datetime.now(UTC),
         ),
     )
+
+
+def upsert_tree_counts(cursor: Cursor, counts: dict[str, int], computed_on: date) -> int:
+    """Store the tree census per arrondissement.
+
+    Read by the R analytics as its canopy input, and by the API for context on
+    the arrondissement chart.
+    """
+    if not counts:
+        log.warning("no tree counts to write")
+        return 0
+
+    rows = [(code, computed_on, total) for code, total in sorted(counts.items())]
+    cursor.executemany(
+        """
+        INSERT INTO arrondissement_trees (code, computed_on, tree_count)
+        VALUES (%s, %s, %s) AS new
+        ON DUPLICATE KEY UPDATE tree_count = new.tree_count
+        """,
+        rows,
+    )
+    log.info("wrote tree counts for %d arrondissement(s)", len(rows))
+    return len(rows)
+
+
+def snapshot_arrondissements(cursor: Cursor, snapshot: date) -> int:
+    """Append today's per-arrondissement aggregates to the history table.
+
+    This is what BigQuery used to hold. Twenty rows a day is 7 300 a year --
+    a decade of history is smaller than a single day of raw spot snapshots, and
+    it answers the same questions without a second database.
+    """
+    cursor.execute(
+        """
+        INSERT INTO arrondissement_history
+          (code, snapshot_date, total, fountain, green_space, indoor, mist,
+           mean_canopy_score, water_access_ratio)
+        SELECT code, %s, total, fountain, green_space, indoor, mist,
+               COALESCE(mean_canopy_score, 0), COALESCE(water_access_ratio, 0)
+        FROM v_arrondissement_stats AS new
+        ON DUPLICATE KEY UPDATE
+          total              = new.total,
+          fountain           = new.fountain,
+          green_space        = new.green_space,
+          indoor             = new.indoor,
+          mist               = new.mist,
+          mean_canopy_score  = new.mean_canopy_score,
+          water_access_ratio = new.water_access_ratio
+        """,
+        (snapshot,),
+    )
+    log.info("snapshotted %d arrondissement row(s) for %s", cursor.rowcount, snapshot)
+    return cursor.rowcount

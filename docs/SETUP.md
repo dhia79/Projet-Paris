@@ -24,8 +24,7 @@ project. It is not a secret in the strict sense, but it identifies a real billab
 | --- | --- | --- |
 | Node 22+ | frontend | `node --version` |
 | Go 1.23+ | `services/api-go` | `go version` |
-| Docker Desktop | the whole compose stack | `docker --version` |
-| PHP 8.3 + Composer | `services/admin-symfony` | `php --version` |
+| Docker Desktop | the compose stack | `docker --version` |
 | R 4.4 + RStudio | `analytics/r` | `Rscript --version` |
 
 Only Node is installed today. Nothing else in the repo depends on the missing tools until you run
@@ -38,12 +37,6 @@ cd services/api-go && go mod tidy && go test ./...
 ```
 
 `go.sum` is deliberately absent — `go mod tidy` is what writes it, and it needs network access.
-
-After installing PHP:
-
-```bash
-cd services/admin-symfony && composer install && vendor/bin/phpunit
-```
 
 After installing R:
 
@@ -64,7 +57,7 @@ gcloud config set project YOUR_PROJECT_ID
 ```
 
 ```bash
-gcloud services enable appengine.googleapis.com sqladmin.googleapis.com bigquery.googleapis.com run.googleapis.com artifactregistry.googleapis.com
+gcloud services enable appengine.googleapis.com sqladmin.googleapis.com run.googleapis.com artifactregistry.googleapis.com cloudscheduler.googleapis.com
 ```
 
 ```bash
@@ -90,9 +83,9 @@ Create three users with least privilege rather than one shared account:
 
 | User | Grants | Used by |
 | --- | --- | --- |
-| `paris_api` | `SELECT` on all tables | `services/api-go` |
-| `paris_pipeline` | `SELECT, INSERT, UPDATE, DELETE` | Airflow |
-| `paris_admin` | `SELECT, INSERT, UPDATE` on `citizen_reports` | Symfony |
+| `paris_api` | `SELECT` everywhere, plus `INSERT` on `citizen_reports` | `services/api-go` |
+| `paris_pipeline` | `SELECT, INSERT, UPDATE, DELETE` | the ingestion job |
+| `paris_analytics` | `SELECT`, plus write on `arrondissement_scores` | `analytics/r` |
 
 4. Apply the schema:
 
@@ -108,17 +101,7 @@ mysql -h YOUR_HOST -u root -p < pipeline/sql/002_seed.sql
 
 ---
 
-## 5. BigQuery
-
-The dataset and table are created by the pipeline itself (`ensure_table`). You only need a service
-account with `roles/bigquery.dataEditor`, and its key placed at `deploy/keys/gcp-sa.json` for local
-runs. That directory is gitignored.
-
-Leave `GCP_PROJECT` empty in `deploy/.env` to skip BigQuery entirely and run MySQL-only.
-
----
-
-## 6. GitLab
+## 5. GitLab
 
 1. Create the project and push this repository.
 2. Settings → CI/CD → Variables, add:
@@ -133,25 +116,13 @@ The service account needs `roles/appengine.deployer`, `roles/appengine.serviceAd
 
 ---
 
-## 7. Metabase
+## 6. Schedule the ingestion job
 
-Start the stack, open http://localhost:3000, create the admin account in its own UI, then add a
-database connection:
-
-- Type: **MySQL**
-- Host: `mysql` (inside the compose network) or `127.0.0.1` from the host
-- Database: `paris_fraicheur`
-- User: a read-only MySQL user
-
-Good first questions to build: `v_arrondissement_stats` as a bar chart, and
-`arrondissement_scores` ordered by `vulnerability_index`.
-
----
-
-## 8. Symfony admin credentials
+Locally, a cron entry is enough:
 
 ```bash
-docker compose -f deploy/docker-compose.yml run --rm admin php bin/console security:hash-password
+docker compose -f deploy/docker-compose.yml run --rm pipeline
 ```
 
-Paste the hash into `ADMIN_PASSWORD_HASH` in `deploy/.env`.
+In GCP, deploy `pipeline/Dockerfile` as a Cloud Run job and add a daily Cloud Scheduler trigger.
+Nothing else is needed — this replaced an Airflow deployment precisely because it does not need one.

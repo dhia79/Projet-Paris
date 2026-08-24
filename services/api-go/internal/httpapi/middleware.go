@@ -83,7 +83,14 @@ func withSecurityHeaders(next http.Handler) http.Handler {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
-		if !strings.HasPrefix(r.URL.Path, "/healthz") {
+		switch {
+		case r.Method != http.MethodGet:
+		case strings.HasPrefix(r.URL.Path, "/healthz"), strings.HasPrefix(r.URL.Path, "/readyz"):
+		case strings.Contains(r.URL.Path, "/reports"):
+			// Reports change the moment someone files one; a shared cache
+			// would show a stale "everything is fine" for a minute.
+			h.Set("Cache-Control", "no-store")
+		default:
 			// Open Data refreshes daily; a minute of shared caching absorbs
 			// dashboard reload storms without serving visibly stale data.
 			h.Set("Cache-Control", "public, max-age=60")

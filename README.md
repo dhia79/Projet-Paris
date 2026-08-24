@@ -18,14 +18,11 @@ filter-reactive distribution chart.
 | Derived state | `useCoolSpots()` + `useMemo` | Pure selectors memoized on real inputs — no selector allocating a fresh object per store write |
 | Styling | Tailwind CSS 3 | Utility-first, responsive breakpoints colocated with markup |
 | Charts | Recharts | Declarative, responsive, and light enough to re-render on every filter change |
-| Read API | Go 1.23 (stdlib `net/http`) | One binary, no framework; the dashboard is read-heavy and the query surface is small |
-| Serving DB | MySQL 8 (Cloud SQL) | Relational reference data with real constraints; the domain is 20 arrondissements and a few thousand rows |
-| Write API | Symfony 7 + API Platform | Citizen reports and back-office — CRUD, validation and admin auth are what it is good at |
-| Ingestion | Apache Airflow + Python | Scheduled, retryable, one task per dataset; failures are visible instead of silent |
-| Warehouse | BigQuery | Day-partitioned history MySQL should not carry |
-| BI | Metabase | Analyst-facing dashboards straight off MySQL/BigQuery |
-| Analytics | R + RStudio | Heat-vulnerability index and k-means clustering |
-| Hosting | Google App Engine + Cloud SQL | Static SPA on GAE, API on Cloud Run/GAE, one project |
+| API | Go 1.23 (stdlib `net/http`) | One static binary, no framework. Reads are the whole job and the query surface is small; Symfony would need PHP-FPM, nginx and an ORM to do less |
+| Database | MySQL 8 (Cloud SQL) | Reference data with real constraints, plus citizen-report writes |
+| Ingestion | Python, run as a job | Three daily fetches. A script on a schedule, not an orchestrator |
+| Analytics | R + RStudio | Heat-vulnerability index and k-means, over measured tree density |
+| Hosting | Google App Engine + Cloud SQL | Static SPA on GAE, API on Cloud Run, one project |
 | CI/CD | GitLab CI | lint → test → build → manual deploy |
 
 Why no map: an interactive Leaflet/Mapbox layer over 4 000+ markers is the single heaviest thing
@@ -50,23 +47,27 @@ npm --prefix frontend run dev
 
 Then open http://localhost:5173.
 
-### The whole platform
+### With the backend
 
 ```bash
 cp deploy/.env.example deploy/.env
 ```
 
-Fill in the passwords, then:
+Fill in the passwords, then bring up MySQL and the API:
 
 ```bash
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
+Load the data (a few minutes — it also pulls the ~200k-row tree register):
+
+```bash
+docker compose -f deploy/docker-compose.yml run --rm pipeline
+```
+
 | Service | URL | Notes |
 | --- | --- | --- |
 | Go API | http://localhost:8080/api/v1/coolspots | MySQL-backed, paginated |
-| Airflow | http://localhost:8081 | Trigger `paris_coolspots_daily` to populate MySQL |
-| Metabase | http://localhost:3000 | Point it at the `mysql` host, database `paris_fraicheur` |
 | MySQL | `localhost:3306` | Schema and seed applied on first boot |
 
 Set `VITE_API_BASE_URL=http://localhost:8080` in `frontend/.env` to make the dashboard read the API
@@ -102,41 +103,64 @@ is optional. Copy `frontend/.env.example` to `frontend/.env` to change any of:
 ## Architecture
 
 ```
-                    Open Data Paris (3 datasets)
-                              |
-                     [ Airflow · Python ]          <- pipeline/
-                       |             |
-              MySQL (serving)   BigQuery (history)
-                 |      |               |
-       [ Go API ]  [ Symfony ]     [ Metabase ]    <- services/, analytics/
-            |            |               |
-            +-- React SPA (App Engine) ---+        <- frontend/
-                              ^
-                        [ R · RStudio ]  --> arrondissement_scores
+   Open Data Paris                         python -m paris_pipeline.run
+   ├── fontaines-a-boire      ──┐          (cron / Cloud Scheduler, daily)
+   ├── espaces_verts          ──┼─→ normalize ─→ score canopy ─→ MySQL
+   ├── ilots-de-fraicheur     ──┘                     ↑            │
+   └── les-arbres (~200k)     ─────────────────────────┘           │
+                                                                   │
+                        R ──→ vulnerability index ────────────────→┤
+                                                                   │
+                                          Go API ←─────────────────┘
+                                             ↑
+                                    React SPA (App Engine)
 ```
 
 | Directory | What lives there |
 | --- | --- |
 | `frontend/` | React 19 + Vite dashboard (deployed to App Engine) |
-| `services/api-go/` | Go read API over MySQL |
-| `services/admin-symfony/` | Symfony 7 citizen reports + back-office |
+| `services/api-go/` | Go API — spot reads and citizen-report writes |
 | `pipeline/sql/` | MySQL schema and seed — the one owner of the DDL |
-| `pipeline/paris_pipeline/` | Extract, normalize, load (MySQL + BigQuery) |
-| `pipeline/airflow/dags/` | The `paris_coolspots_daily` DAG |
+| `pipeline/paris_pipeline/` | Extract, normalize, canopy-score, load |
 | `analytics/r/` | Heat-vulnerability index, k-means, RMarkdown report |
-| `deploy/` | docker-compose stack for the whole platform |
+| `deploy/` | docker-compose stack |
+
+### What was deliberately left out
+
+An earlier pass ran Airflow, BigQuery, Metabase and a second backend in Symfony. All four were cut,
+because the numbers do not justify them:
+
+| Removed | Why |
+| --- | --- |
+| **Airflow** | Three HTTP fetches on a daily timer. It brought a scheduler, a webserver and its own Postgres to do a cron job's work — and Cloud Composer costs ~$300/month. Retries, per-source isolation and run bookkeeping all survive in `run.py`; only the cluster is gone |
+| **BigQuery** | Twenty aggregate rows per day. A decade of that is ~73k rows, which MySQL answers instantly from `arrondissement_history` |
+| **Metabase** | A BI container over aggregates the dashboard already charts |
+| **Symfony** | A second backend for two endpoints. `POST /api/v1/reports` in Go does the same work with one binary and no ORM |
+
+### The canopy score is measured, not invented
+
+`canopyScore` used to be a hash of the record id — stable, plausible-looking, and meaningless, which
+made everything computed on top of it decorative. It is now derived from the city's `les-arbres`
+register: the pipeline counts registered trees within 300 m of each spot, using a uniform grid so
+4 400 spots × 200 000 trees stays a few million distance checks rather than a billion.
+
+The score blends that count with a per-category baseline — an air-conditioned library is cool
+whether or not the street is planted, so trees decide only 25% of its score against 70% for a
+fountain. Full marks are pegged to the 95th percentile rather than the maximum, so one circle inside
+the Bois de Vincennes cannot flatten the rest of the city.
 
 ### One definition of a spot
 
 `pipeline/paris_pipeline/normalize.py` is a deliberate port of
-`frontend/src/services/normalizers.ts` — same rules, same ids, same scores. The pipeline runs them
-once a day server-side; the browser still runs them when no API is configured. `hash_score`
-reproduces JavaScript's 32-bit `| 0` wrap exactly (verified against an independent int32
-implementation over 3 000 fuzz cases) so a spot keeps its canopy score across the two paths.
+`frontend/src/services/normalizers.ts` — same rules, same ids. The pipeline runs them once a day
+server-side; the browser still runs them when no API is configured. `hash_score` reproduces
+JavaScript's 32-bit `| 0` wrap exactly (verified against an independent int32 implementation over
+3 000 fuzz cases), so ids and fallback scores match across the two paths.
 
 That duplication is the deliberate trade: the dashboard must render on a fresh clone with no
-infrastructure, and the API must not require the browser to page 4 500 records. The tests in
-`pipeline/tests/test_normalize.py` are what keep the two honest.
+infrastructure, and the API must not require the browser to page 4 500 records. Note that the
+fallback path is genuinely degraded — without the backend there is no tree data, so it shows the
+hashed baseline rather than the measured canopy score.
 
 ### Frontend
 
@@ -171,6 +195,10 @@ The dependency direction is strictly one-way: `components → hooks → store �
 | `fontaines-a-boire` | 1 325 | `fountain` | ✅ |
 | `espaces_verts` | 2 534 | `green_space` | ✅ |
 | `ilots-de-fraicheur-equipements-activites` | 531 | `indoor` | ⬜ optional |
+| `les-arbres` | ~211 000 | — (canopy scoring) | ⬜ optional, backend only |
+
+`les-arbres` is pulled through the bulk export endpoint rather than paged: 100 rows at a time would
+be ~2 100 requests.
 
 ### The normalization problem
 
@@ -289,19 +317,22 @@ npm --prefix frontend run deploy
 Builds to `frontend/dist/` and runs `gcloud app deploy`. `frontend/app.yaml` serves hashed assets
 with immutable cache headers and rewrites everything else to `index.html` for the SPA router.
 
-### API, admin and pipeline
+### API → Cloud Run
 
-`services/api-go` and `services/admin-symfony` each ship a Debian-based `Dockerfile` — build and
-push to Artifact Registry, then deploy to Cloud Run with the Cloud SQL connector attached
-(`INSTANCE_CONNECTION_NAME` switches both services to the unix socket automatically).
+`services/api-go` ships a Debian-based `Dockerfile`. Build, push to Artifact Registry, deploy to
+Cloud Run with the Cloud SQL connector attached — setting `INSTANCE_CONNECTION_NAME` switches the
+service to the unix socket automatically. Set `TRUST_PROXY=true` there so the report rate limiter
+keys on the real client rather than on the load balancer.
 
-The DAG runs on Cloud Composer; point it at `pipeline/airflow/dags` and set the same `DB_*`
-variables the compose file uses.
+### Pipeline → Cloud Run job
+
+`pipeline/Dockerfile` builds the same one-shot job the compose stack runs. Deploy it as a Cloud Run
+job and point a daily Cloud Scheduler trigger at it. That is the whole scheduling story.
 
 ### CI/CD
 
-`.gitlab-ci.yml` runs typecheck, `go test -race`, `pytest`, `ruff` and `phpunit` on every push, and
-gates the App Engine deploy behind a manual job on the default branch. It needs two CI variables:
+`.gitlab-ci.yml` runs typecheck, `go test -race`, `pytest` and `ruff` on every push, and gates the
+App Engine deploy behind a manual job on the default branch. It needs two CI variables:
 `GCP_PROJECT_ID` and `GCP_SA_KEY`.
 
 ---

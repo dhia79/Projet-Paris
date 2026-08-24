@@ -19,6 +19,7 @@ type Config struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
+	TrustProxy      bool
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	ShutdownGrace   time.Duration
@@ -46,6 +47,10 @@ func Load() (Config, error) {
 		MaxOpenConns:    envInt("DB_MAX_OPEN_CONNS", 25),
 		MaxIdleConns:    envInt("DB_MAX_IDLE_CONNS", 5),
 		ConnMaxLifetime: 5 * time.Minute,
+		// Only trust X-Forwarded-For behind a load balancer that sets it.
+		// Directly exposed, the header is attacker-controlled and would let a
+		// single client rotate past the rate limiter at will.
+		TrustProxy:      os.Getenv("TRUST_PROXY") == "true",
 		ReadTimeout:     10 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownGrace:   15 * time.Second,

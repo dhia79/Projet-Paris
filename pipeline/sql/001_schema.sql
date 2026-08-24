@@ -2,8 +2,7 @@
 --  Projet Paris - Ilots de Fraicheur
 --  MySQL 8.0 serving schema (Cloud SQL)
 --
---  Loaded by the Airflow DAG `paris_coolspots_daily`, read by the Go API and
---  written to by the Symfony admin service.
+--  Written by `python -m paris_pipeline.run`, read and written by the Go API.
 --  Apply with:  mysql -h <host> -u <user> -p < 001_schema.sql
 -- ============================================================================
 
@@ -82,7 +81,7 @@ CREATE TABLE IF NOT EXISTS cool_spots (
 ) ENGINE = InnoDB;
 
 -- ---------------------------------------------------------------------------
---  Citizen reports submitted from the EmergencyWizard (written by Symfony).
+--  Citizen reports submitted from the EmergencyWizard, via the Go API.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS citizen_reports (
   id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -99,12 +98,12 @@ CREATE TABLE IF NOT EXISTS citizen_reports (
 ) ENGINE = InnoDB;
 
 -- ---------------------------------------------------------------------------
---  One row per Airflow DAG run per dataset. The Go API surfaces the latest
---  rows as the `DatasetLoadReport[]` the dashboard footer already renders.
+--  One row per pipeline run per dataset. The Go API surfaces the latest rows
+--  as the `DatasetLoadReport[]` the dashboard footer already renders.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS ingestion_runs (
   id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  run_id           VARCHAR(128) NOT NULL COMMENT 'Airflow dag_run_id',
+  run_id           VARCHAR(128) NOT NULL COMMENT 'pipeline run identifier',
   source           VARCHAR(64)  NOT NULL,
   status           ENUM('ok', 'failed') NOT NULL,
   raw_count        INT UNSIGNED NOT NULL DEFAULT 0,
@@ -118,8 +117,8 @@ CREATE TABLE IF NOT EXISTS ingestion_runs (
 ) ENGINE = InnoDB;
 
 -- ---------------------------------------------------------------------------
---  Heat-vulnerability score per arrondissement, computed in R and loaded back
---  by Airflow. Kept out of `arrondissements` so a failed analytics run never
+--  Heat-vulnerability score per arrondissement, computed and written by
+--  analytics/r. Kept out of `arrondissements` so a failed analytics run never
 --  blocks the serving reference data.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS arrondissement_scores (
@@ -133,6 +132,44 @@ CREATE TABLE IF NOT EXISTS arrondissement_scores (
   cluster             TINYINT UNSIGNED NULL COMMENT 'k-means group from analytics/r',
   PRIMARY KEY (code, computed_on),
   CONSTRAINT fk_score_arrondissement FOREIGN KEY (code)
+    REFERENCES arrondissements (code) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+-- ---------------------------------------------------------------------------
+--  Tree census per arrondissement, from the city's `les-arbres` register.
+--  This is what makes `cool_spots.canopy_score` a measurement rather than a
+--  hash: the pipeline counts registered trees within 300 m of every spot.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS arrondissement_trees (
+  code         CHAR(5)      NOT NULL,
+  computed_on  DATE         NOT NULL,
+  tree_count   INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (code, computed_on),
+  CONSTRAINT fk_trees_arrondissement FOREIGN KEY (code)
+    REFERENCES arrondissements (code) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+-- ---------------------------------------------------------------------------
+--  Daily history of the per-arrondissement aggregates.
+--
+--  Twenty rows a day. A decade of this is ~73k rows, which is why it lives in
+--  MySQL rather than in a warehouse: the questions history answers here are
+--  "how did coverage move between two heatwaves", and MySQL answers them
+--  instantly at this size.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS arrondissement_history (
+  code               CHAR(5)      NOT NULL,
+  snapshot_date      DATE         NOT NULL,
+  total              INT UNSIGNED NOT NULL DEFAULT 0,
+  fountain           INT UNSIGNED NOT NULL DEFAULT 0,
+  green_space        INT UNSIGNED NOT NULL DEFAULT 0,
+  indoor             INT UNSIGNED NOT NULL DEFAULT 0,
+  mist               INT UNSIGNED NOT NULL DEFAULT 0,
+  mean_canopy_score  DECIMAL(5, 2) NOT NULL DEFAULT 0,
+  water_access_ratio DECIMAL(5, 4) NOT NULL DEFAULT 0,
+  PRIMARY KEY (code, snapshot_date),
+  KEY idx_history_date (snapshot_date),
+  CONSTRAINT fk_history_arrondissement FOREIGN KEY (code)
     REFERENCES arrondissements (code) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 

@@ -5,8 +5,3 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
-
-[tool.ruff.lint.per-file-ignores]
-# Airflow DAG files are executed by the scheduler, not imported as a library;
-# the trailing call that registers the DAG is the point of the module.
-"airflow/dags/*.py" = ["B008"]

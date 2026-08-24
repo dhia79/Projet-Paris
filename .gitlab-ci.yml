@@ -100,23 +100,21 @@ pipeline:test:
   script:
     - ruff check .
     - pytest --cov=paris_pipeline --cov-report=term-missing
+  coverage: '/^TOTAL.+?(\d+\%)$/'
   rules:
     - changes: [pipeline/**/*]
 
-# ---------------------------------------------------------------- Symfony ---
-symfony:test:
-  image: php:8.3-cli-bookworm
-  stage: test
-  before_script:
-    - apt-get update && apt-get install -y --no-install-recommends git unzip libicu-dev
-    - docker-php-ext-install intl
-    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-    - cd services/admin-symfony
-    - composer install --no-interaction --prefer-dist
+pipeline:build-image:
+  image: docker:27
+  services: [docker:27-dind]
+  stage: build
   script:
-    - vendor/bin/phpunit
+    - docker build -t "$CI_REGISTRY_IMAGE/pipeline:$CI_COMMIT_SHORT_SHA" pipeline
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker push "$CI_REGISTRY_IMAGE/pipeline:$CI_COMMIT_SHORT_SHA"
   rules:
-    - changes: [services/admin-symfony/**/*]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: [pipeline/**/*]
 
 # ----------------------------------------------------------------- deploy ---
 deploy:frontend:
