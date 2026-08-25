@@ -18,7 +18,9 @@ var sortColumns = map[string]string{
 	"canopyScore":    "s.canopy_score",
 }
 
-// Defaults mirror the initial state of the Zustand store.
+// Sort defaults mirror the initial state of the Zustand store. The page size
+// does not: the dashboard reveals rows in batches client-side and pulls the
+// result set in bulk, so this is only the default for direct API callers.
 const (
 	DefaultSortColumn = "canopyScore"
 	DefaultSortDir    = "desc"

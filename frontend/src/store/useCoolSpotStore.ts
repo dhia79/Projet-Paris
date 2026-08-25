@@ -3,7 +3,6 @@ import type {
   CoolSpot,
   CoolSpotCategory,
   CoolSpotFilter,
-  PaginationState,
   PriceFilter,
   SortState,
   SortableColumn,
@@ -22,9 +21,14 @@ export const INITIAL_FILTER: CoolSpotFilter = {
 }
 
 const INITIAL_SORT: SortState = { column: 'canopyScore', direction: 'desc' }
-const INITIAL_PAGINATION: PaginationState = { page: 1, pageSize: 25 }
-
-export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
+/**
+ * Rows revealed per batch as the user scrolls.
+ *
+ * The store holds all ~4 400 matches, but the table only ever mounts
+ * `visibleCount` rows: laying out the whole list at once is what would make
+ * the browser stutter, not holding the data in memory.
+ */
+export const ROWS_PER_BATCH = 70
 
 function loadFavoritesFromStorage(): string[] {
   try {
@@ -51,7 +55,7 @@ interface CoolSpotState {
   error: string | null
   filters: CoolSpotFilter
   sort: SortState
-  pagination: PaginationState
+  visibleCount: number
   simulatedTemp: number
   favorites: string[]
   isWizardOpen: boolean
@@ -62,8 +66,7 @@ interface CoolSpotActions {
   setFilter: <K extends keyof CoolSpotFilter>(key: K, value: CoolSpotFilter[K]) => void
   resetFilters: () => void
   setSort: (column: SortableColumn) => void
-  setPage: (page: number) => void
-  setPageSize: (pageSize: number) => void
+  loadMore: () => void
   setSimulatedTemp: (temp: number) => void
   toggleFavorite: (id: string) => void
   setWizardOpen: (open: boolean) => void
@@ -81,7 +84,7 @@ export const useCoolSpotStore = create<CoolSpotStore>((set, get) => ({
   error: null,
   filters: INITIAL_FILTER,
   sort: INITIAL_SORT,
-  pagination: INITIAL_PAGINATION,
+  visibleCount: ROWS_PER_BATCH,
   simulatedTemp: 32,
   favorites: loadFavoritesFromStorage(),
   isWizardOpen: false,
@@ -115,12 +118,12 @@ export const useCoolSpotStore = create<CoolSpotStore>((set, get) => ({
   setFilter(key, value) {
     const current = get().filters
     if (current[key] === value) return
-    set({ filters: { ...current, [key]: value }, pagination: { ...get().pagination, page: 1 } })
+    set({ filters: { ...current, [key]: value }, visibleCount: ROWS_PER_BATCH })
     logger.info('store', `setFilter(${String(key)})`, value)
   },
 
   resetFilters() {
-    set({ filters: INITIAL_FILTER, pagination: { ...get().pagination, page: 1 } })
+    set({ filters: INITIAL_FILTER, visibleCount: ROWS_PER_BATCH })
     logger.info('store', 'resetFilters()')
   },
 
@@ -128,17 +131,14 @@ export const useCoolSpotStore = create<CoolSpotStore>((set, get) => ({
     const { sort } = get()
     const direction: SortState['direction'] =
       sort.column === column && sort.direction === 'desc' ? 'asc' : 'desc'
-    set({ sort: { column, direction }, pagination: { ...get().pagination, page: 1 } })
+    set({ sort: { column, direction }, visibleCount: ROWS_PER_BATCH })
     logger.info('store', 'setSort()', { column, direction })
   },
 
-  setPage(page) {
-    set({ pagination: { ...get().pagination, page: Math.max(1, page) } })
-  },
-
-  setPageSize(pageSize) {
-    set({ pagination: { page: 1, pageSize } })
-    logger.info('store', 'setPageSize()', pageSize)
+  loadMore() {
+    const next = get().visibleCount + ROWS_PER_BATCH
+    set({ visibleCount: next })
+    logger.info('store', 'loadMore()', next)
   },
 
   setSimulatedTemp(temp) {
@@ -164,7 +164,7 @@ export const useCoolSpotStore = create<CoolSpotStore>((set, get) => ({
         price,
         arrondissement: arr,
       },
-      pagination: { ...get().pagination, page: 1 },
+      visibleCount: ROWS_PER_BATCH,
       isWizardOpen: false,
     })
   },

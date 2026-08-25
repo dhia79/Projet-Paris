@@ -3,7 +3,6 @@ import {
   type CoolSpot,
   type CoolSpotCategory,
   type CoolSpotFilter,
-  type PaginationState,
   type SortState,
 } from '../types/coolspot'
 
@@ -79,16 +78,17 @@ export function selectSortedItems(items: readonly CoolSpot[], sort: SortState): 
   })
 }
 
-export function selectPaginatedItems(
+/**
+ * The prefix of the result set the table has revealed so far.
+ *
+ * `slice` returns a new array only when the bounds move, and the hook memoizes
+ * on visibleCount, so scrolling costs one slice per batch -- not per frame.
+ */
+export function selectVisibleItems(
   items: readonly CoolSpot[],
-  { page, pageSize }: PaginationState,
+  visibleCount: number,
 ): CoolSpot[] {
-  const start = (page - 1) * pageSize
-  return items.slice(start, start + pageSize)
-}
-
-export function selectPageCount(total: number, pageSize: number): number {
-  return Math.max(1, Math.ceil(total / pageSize))
+  return items.slice(0, visibleCount)
 }
 
 export function selectStatsByArrondissement(items: readonly CoolSpot[]): ArrondissementStat[] {

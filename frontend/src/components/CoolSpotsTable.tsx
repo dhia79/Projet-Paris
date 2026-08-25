@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import type { CoolSpot, PaginationState, SortState, SortableColumn } from '../types/coolspot'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { CoolSpot, SortState, SortableColumn } from '../types/coolspot'
 import { CATEGORY_BADGE_CLASSES, CATEGORY_LABELS, SOURCE_LABELS } from '../types/coolspot'
 import { arrondissementLabel } from '../store/selectors'
-import { PAGE_SIZE_OPTIONS } from '../store/useCoolSpotStore'
+import { ROWS_PER_BATCH } from '../store/useCoolSpotStore'
 import { SpotDetailsDrawer } from './SpotDetailsDrawer'
 
 export interface CoolSpotsTableProps {
@@ -10,14 +10,13 @@ export interface CoolSpotsTableProps {
   allFilteredItems: readonly CoolSpot[]
   totalCount: number
   sort: SortState
-  pagination: PaginationState
-  pageCount: number
+  revealedCount: number
+  hasMore: boolean
   loading: boolean
   favorites: readonly string[]
   hasActiveFilters: boolean
   onSort: (column: SortableColumn) => void
-  onPageChange: (page: number) => void
-  onPageSizeChange: (pageSize: number) => void
+  onLoadMore: () => void
   onResetFilters: () => void
   onToggleFavorite: (id: string) => void
 }
@@ -60,20 +59,43 @@ export function CoolSpotsTable({
   allFilteredItems,
   totalCount,
   sort,
-  pagination,
-  pageCount,
+  revealedCount,
+  hasMore,
   loading,
   favorites,
   hasActiveFilters,
   onSort,
-  onPageChange,
-  onPageSizeChange,
+  onLoadMore,
   onResetFilters,
   onToggleFavorite,
 }: CoolSpotsTableProps) {
   const [selectedSpot, setSelectedSpot] = useState<CoolSpot | null>(null)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
 
-  const favoritesSet = new Set(favorites)
+  /**
+   * Reveals the next batch when the sentinel below the last row comes into
+   * view. `rootMargin` fires it one viewport early, so the rows are mounted
+   * before the user reaches the end of the list.
+   *
+   * Re-subscribed whenever hasMore flips: once the list is exhausted the
+   * observer is torn down rather than left firing against a no-op.
+   */
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || !hasMore || loading) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) onLoadMore()
+      },
+      { rootMargin: '600px 0px' },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMore, loading, onLoadMore, revealedCount])
+
+  // Rebuilt only when the list changes, not on every row hover or drawer open.
+  const favoritesSet = useMemo(() => new Set(favorites), [favorites])
 
   const exportCSV = () => {
     const headers = ['ID', 'Nom', 'Categorie', 'Arrondissement', 'Adresse', 'Tarif', 'Frescheur', 'Horaires', 'Source']
@@ -233,53 +255,35 @@ export function CoolSpotsTable({
         </table>
       </div>
 
+      {/* Infinite-scroll sentinel: the observer target sits below the last row. */}
+      <div ref={sentinelRef} aria-hidden="true" className="h-px w-full" />
+
       {/* Table Footer & Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-between pt-5 border-t surf-bd text-xs font-mono-data ink-mute gap-4">
         <div className="flex items-center gap-4 flex-wrap">
-          <span id="table-status">
+          <span id="table-status" aria-live="polite">
             {isLoadingState
               ? 'Chargement...'
-              : `${totalCount.toLocaleString('fr-FR')} refuge${totalCount > 1 ? 's' : ''} affiché${totalCount > 1 ? 's' : ''}`}
+              : `${revealedCount.toLocaleString('fr-FR')} sur ${totalCount.toLocaleString('fr-FR')} refuge${totalCount > 1 ? 's' : ''} affiché${revealedCount > 1 ? 's' : ''}`}
           </span>
           <button onClick={exportCSV} className="text-[11px] ink-mute acc-hover-text underline decoration-dotted cursor-pointer">
             Exporter en CSV
           </button>
         </div>
 
-        {/* Pagination Controls */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span>Par page:</span>
-            <select
-              value={pagination.pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="bg-transparent border-b surf-bd ink text-xs font-mono-data focus:outline-none cursor-pointer"
-            >
-              {PAGE_SIZE_OPTIONS.map((sz) => (
-                <option key={sz} value={sz}>{sz}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onPageChange(pagination.page - 1)}
-              disabled={pagination.page <= 1 || isLoadingState}
-              className="ink-mute acc-hover-text disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            >
-              ← Précédent
-            </button>
-            <span id="page-indicator" className="ink font-bold">
-              {pagination.page} / {pageCount}
-            </span>
-            <button
-              onClick={() => onPageChange(pagination.page + 1)}
-              disabled={pagination.page >= pageCount || isLoadingState}
-              className="ink-mute acc-hover-text disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            >
-              Suivant →
-            </button>
-          </div>
-        </div>
+        {/* The scroll does the work; this is the keyboard and no-observer path. */}
+        {hasMore && !isLoadingState && (
+          <button
+            type="button"
+            onClick={onLoadMore}
+            className="ink-mute acc-hover-text underline decoration-dotted cursor-pointer"
+          >
+            Afficher {Math.min(ROWS_PER_BATCH, totalCount - revealedCount)} refuges de plus ↓
+          </button>
+        )}
+        {!hasMore && totalCount > 0 && !isLoadingState && (
+          <span className="opacity-60">Fin de la liste</span>
+        )}
       </div>
 
       {/* Spot Details Drawer */}

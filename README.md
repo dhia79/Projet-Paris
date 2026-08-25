@@ -2,7 +2,8 @@
 
 A responsive dashboard that helps Parisians and tourists find **cool spots** during heat waves.
 It aggregates three heterogeneous Open Data Paris datasets, normalizes them into a single domain
-model, and exposes them through multi-dataset filtering, a sortable/paginated table, and a
+model, and exposes them through multi-dataset filtering, a sortable table that reveals rows in
+batches as you scroll, and a
 filter-reactive distribution chart.
 
 **4 388 cool spots** across all 20 arrondissements, loaded live from the Open Data Paris API.
@@ -33,9 +34,18 @@ A stacked bar chart answers that instantly and stays at 60fps while filters chan
 
 ## Getting started
 
-### Just the dashboard
+Three levels, each self-contained. If you only want to see the dashboard, level 1 is enough.
 
-No backend, no database, no keys — the SPA falls back to reading Open Data Paris directly:
+| Level | What you get | What you must install | Time |
+| --- | --- | --- | --- |
+| 1 · Dashboard only | The full app, reading Open Data Paris live | Node 18+ | ~2 min |
+| 2 · Full stack | MySQL + Go API + ingestion, measured canopy score | Docker Desktop, Go 1.23 | ~15 min |
+| 3 · Pipeline & analytics | Python tests, local ingestion, R analysis | Python 3.12, R 4.4 | ~10 min |
+
+### Level 1 — the dashboard alone
+
+No backend, no database, **no API key**. The SPA reads Open Data Paris directly and normalizes in
+the browser.
 
 ```bash
 npm --prefix frontend install
@@ -45,49 +55,146 @@ npm --prefix frontend install
 npm --prefix frontend run dev
 ```
 
-Then open http://localhost:5173.
+Then open **http://localhost:5173**. You should see **4 388 cool spots**, the per-arrondissement
+chart, and the filterable table.
 
-### With the backend
+> **Limit of this mode:** with no backend there is no tree register, so the "Fraîcheur" column shows
+> the hashed fallback score rather than the measured canopy score. Everything else is identical.
+
+Other frontend scripts:
+
+```bash
+npm --prefix frontend run lint
+```
+
+```bash
+npm --prefix frontend run build
+```
+
+`lint` is `tsc --noEmit` (strict TypeScript — there is no ESLint here). `build` writes
+`frontend/dist/`.
+
+### Level 2 — the full stack
+
+#### ⚠️ Required first: generate `go.sum`
+
+`services/api-go/go.sum` **is not in the repository** and has never been generated. Without it the
+Docker build fails on `COPY go.mod go.sum ./` before it ever compiles, and `go test` / `go vet` fail
+with `missing go.sum entry`. It needs **Go 1.23+ and network access**, once:
+
+```bash
+cd services/api-go && go mod tidy
+```
+
+```bash
+cd services/api-go && go test ./... -race -cover
+```
+
+Commit `go.sum`: the rest of this section and the CI both depend on it.
+
+#### 1. Environment
 
 ```bash
 cp deploy/.env.example deploy/.env
 ```
 
-Fill in the passwords, then bring up MySQL and the API:
+Fill in the two passwords — there are deliberately **no defaults for secrets**:
+
+| Variable | Fill in | Purpose |
+| --- | --- | --- |
+| `MYSQL_ROOT_PASSWORD` | ✅ | MySQL root account |
+| `MYSQL_PASSWORD` | ✅ | Password for `paris_app`, used by the API |
+| `MYSQL_DATABASE` | pre-filled | `paris_fraicheur` |
+| `MYSQL_USER` | pre-filled | `paris_app` |
+| `ALLOWED_ORIGINS` | pre-filled | Must contain wherever Vite is listening |
+
+`deploy/.env` is gitignored.
+
+#### 2. Bring up MySQL and the API
 
 ```bash
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
-Load the data (a few minutes — it also pulls the ~200k-row tree register):
+`pipeline/sql/` is applied automatically on first boot, on an empty volume. The API waits for MySQL
+to report healthy.
+
+#### 3. Load the data
+
+Ingestion is a **one-shot job**, not a service.
 
 ```bash
 docker compose -f deploy/docker-compose.yml run --rm pipeline
 ```
 
+Expect **several minutes**: on top of the three datasets it pulls the ~211 000-row tree register to
+compute the canopy score. Exit codes: `0` all sources loaded · `1` a required source failed ·
+`2` configuration missing.
+
+#### 4. Point the dashboard at the API
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+`VITE_API_BASE_URL=http://localhost:8080` is already there. Restart Vite — `VITE_*` variables are
+read at startup, not hot-reloaded.
+
 | Service | URL | Notes |
 | --- | --- | --- |
+| Dashboard | http://localhost:5173 | Vite dev server, started separately |
 | Go API | http://localhost:8080/api/v1/coolspots | MySQL-backed, paginated |
-| MySQL | `localhost:3306` | Schema and seed applied on first boot |
-
-Set `VITE_API_BASE_URL=http://localhost:8080` in `frontend/.env` to make the dashboard read the API
-instead of Open Data Paris.
-
-Other scripts:
+| Liveness | http://localhost:8080/healthz | Answers without touching the database |
+| Readiness | http://localhost:8080/readyz | `503` when MySQL is unreachable |
+| MySQL | `localhost:3306` | Port configurable via `MYSQL_PORT` |
 
 ```bash
-npm run lint
+curl "http://localhost:8080/api/v1/coolspots?arrondissement=75004&category=fountain&pageSize=5"
+```
+
+Stop with `docker compose -f deploy/docker-compose.yml down`. Add `-v` to drop the MySQL volume too
+— required if you change `pipeline/sql/001_schema.sql`, since init scripts only replay on an empty
+volume.
+
+#### Working on the API without Docker
+
+`services/api-go/` ships a `Makefile`: `make run`, `make test` (race + coverage), `make lint`
+(`go vet` + `gofmt -l`), `make build`, `make tidy`.
+
+Configuration is entirely environmental — `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`,
+`PORT`, `ALLOWED_ORIGINS`, `TRUST_PROXY`. `DB_DSN` short-circuits the `DB_*` parts. `DB_PASSWORD`
+(or `DB_DSN`) is the only mandatory setting.
+
+> Set `TRUST_PROXY=true` only behind a load balancer that writes `X-Forwarded-For`. Exposed
+> directly, that header is attacker-controlled.
+
+### Level 3 — pipeline and analytics locally
+
+```bash
+python -m pip install -r pipeline/requirements-dev.txt
+```
+
+The tests touch no database:
+
+```bash
+cd pipeline && python -m pytest -q
 ```
 
 ```bash
-npm run build
+cd pipeline && python -m ruff check .
+```
+
+For a real ingestion, export the `DB_*` variables then run `python -m paris_pipeline.run`.
+
+```bash
+Rscript analytics/r/install_deps.R
 ```
 
 ```bash
-npm run deploy
+Rscript analytics/r/vulnerability_index.R
 ```
 
-### Environment
+### Environment variables
 
 Everything works with **no `.env` at all** — the Open Data Paris API needs no key, and the backend
 is optional. Copy `frontend/.env.example` to `frontend/.env` to change any of:
@@ -97,6 +204,19 @@ is optional. Copy `frontend/.env.example` to `frontend/.env` to change any of:
 | `VITE_API_BASE_URL` | unset | Origin of the Go API. Unset ⇒ normalize Open Data in the browser |
 | `VITE_OPENDATA_BASE_URL` | Open Data Paris v2.1 catalog | Point at a proxy or fixture server |
 | `VITE_ENABLE_LOGS` | `true` | Set to `false` to silence all non-error logs |
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `COPY go.mod go.sum` fails in the Docker build | `go.sum` missing | `cd services/api-go && go mod tidy`, then commit it |
+| `missing go.sum entry` on `go test` | same | same |
+| Dashboard shows 4 388 spots but round-looking scores | No backend wired in | Set `VITE_API_BASE_URL`, restart Vite |
+| Dashboard stays empty | Open Data Paris unreachable, or `VITE_API_BASE_URL` points at a dead API | Open the console — every call is logged with its timing |
+| CORS error in the console | Vite's origin is not in `ALLOWED_ORIGINS` | Fix `deploy/.env`, then `up -d` again |
+| `/readyz` returns `503` | API is up, MySQL is not | `docker compose -f deploy/docker-compose.yml logs mysql` |
+| Schema change not picked up | Init scripts only replay on an empty volume | `down -v` then `up -d` |
+| `MYSQL_ROOT_PASSWORD ... variable is not set` | `deploy/.env` missing or incomplete | Start again from `deploy/.env.example` |
 
 ---
 
@@ -176,7 +296,7 @@ frontend/src/
 │   └── coolSpotService.ts # Orchestration: source selection, merge, dedupe, degradation policy
 ├── store/
 │   ├── useCoolSpotStore.ts# Zustand: raw state + actions only
-│   └── selectors.ts       # Pure derivation functions (filter, sort, paginate, aggregate)
+│   └── selectors.ts       # Pure derivation functions (filter, sort, reveal, aggregate)
 ├── hooks/
 │   ├── useCoolSpots.ts    # Read model — composes selectors into memoized derived values
 │   └── useDebouncedValue.ts
@@ -244,7 +364,11 @@ Other normalization decisions worth naming in review:
 ### Performance & a11y notes
 
 - Search input is debounced at 250 ms with local draft state, so typing never blocks on filtering 4 388 rows.
-- Sorting/filtering/pagination are memoized independently — changing the page does not re-filter.
+- Sorting, filtering and row reveal are memoized independently — revealing the next batch does not
+  re-filter or re-sort the 4 388 rows.
+- The table mounts rows in batches of 70 (`ROWS_PER_BATCH`), extended by an `IntersectionObserver`
+  on a sentinel below the last row, with a 600px `rootMargin` so the rows exist before they are
+  scrolled to. Any filter or sort change resets the reveal to the first batch.
 - `manualChunks` splits Recharts into its own vendor bundle (app chunk: 77 KB gzipped).
 - Table headers carry `aria-sort`; the toggle is a real `role="switch"`; the drawer is a focus-managed
   `role="dialog"` with Escape-to-close; the result count is an `aria-live` region.
@@ -306,6 +430,104 @@ amber banner appears, and the other 3 859 spots still render.
 
 ---
 
+## Manual setup
+
+Everything in this repository is written and committed. What follows needs an account, a card, or a
+machine-local install — it cannot be done from the repo. Each section is independent of the ones
+below it.
+
+### 1. Retire the old Firebase project (do this first)
+
+The web API key `AIzaSy…FXPEM` is still in this repository's git history and is tied to a live
+project. Not a secret in the strict sense, but it identifies a real billable project.
+
+1. [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials) → delete
+   the browser key for `projet-paris-6bf57`.
+2. [Firebase Console](https://console.firebase.google.com) → project settings → delete the project.
+
+### 2. Local toolchain
+
+| Tool | Needed for | Check |
+| --- | --- | --- |
+| Node 22+ | frontend | `node --version` |
+| Go 1.23+ | `services/api-go` | `go version` |
+| Docker Desktop | the compose stack | `docker --version` |
+| Python 3.12+ | `pipeline` | `python --version` |
+| R 4.4 + RStudio | `analytics/r` | `Rscript --version` |
+
+Nothing in the repo depends on a missing tool until you run the service that uses it. After
+installing Go, run `go mod tidy` in `services/api-go` — `go.sum` is not committed and that command
+is what writes it.
+
+### 3. Google Cloud
+
+```bash
+gcloud auth login
+```
+
+```bash
+gcloud config set project YOUR_PROJECT_ID
+```
+
+```bash
+gcloud services enable appengine.googleapis.com sqladmin.googleapis.com run.googleapis.com artifactregistry.googleapis.com cloudscheduler.googleapis.com
+```
+
+```bash
+gcloud app create --region=europe-west1
+```
+
+Billing must be enabled before App Engine will accept a deploy.
+
+### 4. Cloud SQL (MySQL 8)
+
+1. Create the instance (console or `gcloud sql instances create`), region `europe-west1`.
+2. Note the **connection name** — `project:region:instance`. Both the Go API and the pipeline read
+   it from `INSTANCE_CONNECTION_NAME`.
+3. Create the database:
+
+```bash
+gcloud sql databases create paris_fraicheur --instance=YOUR_INSTANCE
+```
+
+Then three users with least privilege rather than one shared account:
+
+| User | Grants | Used by |
+| --- | --- | --- |
+| `paris_api` | `SELECT` everywhere, plus `INSERT` on `citizen_reports` | `services/api-go` |
+| `paris_pipeline` | `SELECT, INSERT, UPDATE, DELETE` | the ingestion job |
+| `paris_analytics` | `SELECT`, plus write on `arrondissement_scores` | `analytics/r` |
+
+4. Apply the schema — the compose stack does this automatically, so this is for Cloud SQL only:
+
+```bash
+mysql -h YOUR_HOST -u root -p < pipeline/sql/001_schema.sql
+```
+
+```bash
+mysql -h YOUR_HOST -u root -p < pipeline/sql/002_seed.sql
+```
+
+### 5. GitLab
+
+Settings → CI/CD → Variables:
+
+| Variable | Type | Flags |
+| --- | --- | --- |
+| `GCP_PROJECT_ID` | variable | protected |
+| `GCP_SA_KEY` | file | protected, masked |
+
+The service account needs `roles/appengine.deployer`, `roles/appengine.serviceAdmin`,
+`roles/cloudbuild.builds.editor` and `roles/storage.admin`.
+
+### 6. Schedule the ingestion
+
+Locally a cron entry running the compose job is enough. In GCP, deploy `pipeline/Dockerfile` as a
+Cloud Run job and add a daily Cloud Scheduler trigger. That is the whole scheduling story — this
+replaced an Airflow deployment precisely because it does not need one.
+
+---
+
 ## Deployment
 
 ### Frontend → Google App Engine
@@ -342,6 +564,3 @@ App Engine deploy behind a manual job on the default branch. It needs two CI var
 Data: [Open Data Paris](https://opendata.paris.fr) — Explore API v2.1. Opening hours and fountain
 availability change frequently; the app surfaces what the datasets report, and users should verify
 on site.
-#   P r o j e t - P a r i s 
- 
- 

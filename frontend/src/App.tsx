@@ -1,16 +1,6 @@
 import { useEffect } from 'react'
 import { useCoolSpotStore } from './store/useCoolSpotStore'
-import {
-  selectActiveFiltersCount,
-  selectAvailableArrondissements,
-  selectAvailableSources,
-  selectCountsByCategory,
-  selectFilteredItems,
-  selectPageCount,
-  selectPaginatedItems,
-  selectSortedItems,
-  selectStatsByArrondissement,
-} from './store/selectors'
+import { useCoolSpots } from './hooks/useCoolSpots'
 
 import { Header } from './components/Header'
 import { HeroSlider } from './components/HeroSlider'
@@ -54,21 +44,33 @@ function DegradedNotice({ labels }: { labels: readonly string[] }) {
 }
 
 export default function App() {
-  const fetchAllDatasets = useCoolSpotStore((s) => s.fetchAllDatasets)
-  const items = useCoolSpotStore((s) => s.items)
-  const reports = useCoolSpotStore((s) => s.reports)
-  const loading = useCoolSpotStore((s) => s.loading)
-  const error = useCoolSpotStore((s) => s.error)
-  const filters = useCoolSpotStore((s) => s.filters)
-  const sort = useCoolSpotStore((s) => s.sort)
-  const pagination = useCoolSpotStore((s) => s.pagination)
-  const favorites = useCoolSpotStore((s) => s.favorites)
+  // Every derived value comes from the read model; App only wires it to props.
+  const {
+    items,
+    loading,
+    error,
+    filters,
+    sort,
+    favorites,
+    filteredItems,
+    visibleItems,
+    revealedCount,
+    hasMore,
+    loadMore,
+    totalCount,
+    statsByArrondissement,
+    countsByCategory,
+    availableArrondissements,
+    availableSources,
+    activeFiltersCount,
+    loadedSourceCount,
+    failedSourceLabels,
+  } = useCoolSpots()
 
+  const fetchAllDatasets = useCoolSpotStore((s) => s.fetchAllDatasets)
   const setFilter = useCoolSpotStore((s) => s.setFilter)
   const resetFilters = useCoolSpotStore((s) => s.resetFilters)
   const setSort = useCoolSpotStore((s) => s.setSort)
-  const setPage = useCoolSpotStore((s) => s.setPage)
-  const setPageSize = useCoolSpotStore((s) => s.setPageSize)
   const toggleFavorite = useCoolSpotStore((s) => s.toggleFavorite)
 
   useEffect(() => {
@@ -110,23 +112,6 @@ export default function App() {
     }
   }, [items])
 
-  const favoritesSet = new Set(favorites)
-  const filtered = selectFilteredItems(items, filters, favoritesSet)
-  const sorted = selectSortedItems(filtered, sort)
-  const paginated = selectPaginatedItems(sorted, pagination)
-
-  const totalCount = filtered.length
-  const pageCount = selectPageCount(totalCount, pagination.pageSize)
-
-  const sourceCount = reports.filter((r) => r.status === 'ok').length
-  const failedLabels = reports.filter((r) => r.status === 'failed').map((r) => r.label)
-
-  const countsByCategory = selectCountsByCategory(items)
-  const statsByArrondissement = selectStatsByArrondissement(filtered)
-  const availableArrondissements = selectAvailableArrondissements(items)
-  const availableSources = selectAvailableSources(items)
-  const activeFiltersCount = selectActiveFiltersCount(filters, useCoolSpotStore.getState().filters)
-
   return (
     <div className="min-h-screen relative overflow-x-hidden">
       {/* Skip to main content for accessibility */}
@@ -158,7 +143,7 @@ export default function App() {
             <ErrorPanel message={error} onRetry={() => void fetchAllDatasets()} />
           ) : (
             <>
-              {failedLabels.length > 0 && <DegradedNotice labels={failedLabels} />}
+              {failedSourceLabels.length > 0 && <DegradedNotice labels={failedSourceLabels} />}
 
               {/* Oasis Hero Category Slider */}
               <HeroSlider />
@@ -166,7 +151,7 @@ export default function App() {
               {/* Metrics Strip */}
               <DashboardMetrics
                 totalCount={items.length}
-                sourceCount={sourceCount}
+                sourceCount={loadedSourceCount}
                 countsByCategory={countsByCategory}
                 loading={loading}
               />
@@ -192,18 +177,17 @@ export default function App() {
               {/* Data Table */}
               <ErrorBoundary>
                 <CoolSpotsTable
-                  items={paginated}
-                  allFilteredItems={filtered}
+                  items={visibleItems}
+                  allFilteredItems={filteredItems}
                   totalCount={totalCount}
                   sort={sort}
-                  pagination={pagination}
-                  pageCount={pageCount}
+                  revealedCount={revealedCount}
+                  hasMore={hasMore}
                   loading={loading}
                   favorites={favorites}
                   hasActiveFilters={activeFiltersCount > 0}
                   onSort={setSort}
-                  onPageChange={setPage}
-                  onPageSizeChange={setPageSize}
+                  onLoadMore={loadMore}
                   onResetFilters={resetFilters}
                   onToggleFavorite={toggleFavorite}
                 />

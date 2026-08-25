@@ -78,11 +78,6 @@ export interface SortState {
   direction: SortDirection
 }
 
-export interface PaginationState {
-  page: number
-  pageSize: number
-}
-
 export interface ArrondissementStat {
   /** `75011` */
   readonly code: string

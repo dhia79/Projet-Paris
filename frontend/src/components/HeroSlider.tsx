@@ -21,7 +21,6 @@ interface SlideData {
   svgGlyph: React.ReactNode
 }
 
-const TICK_COUNT = 36
 /** Must outlast the longest transition layer (the 1.3s page sweep). */
 const SWEEP_MS = 1400
 
@@ -152,7 +151,6 @@ export function HeroSlider() {
   const [prevGradient, setPrevGradient] = useState<string | null>(null)
   const setFilter = useCoolSpotStore((s) => s.setFilter)
   const currentSlide: SlideData = SLIDES[activeIdx] ?? SLIDES[0]!
-  const ticksRef = useRef<HTMLDivElement>(null)
   const touchStartRef = useRef<number | null>(null)
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
@@ -171,31 +169,6 @@ export function HeroSlider() {
     root.style.setProperty('--border-card', currentSlide.borderCard)
     root.style.setProperty('--chip-bg', currentSlide.chipBg)
     root.style.setProperty('--hover-surface', currentSlide.hoverSurface)
-  }, [currentSlide])
-
-  // Build the sensor ticks once — heights stay put so only colour animates.
-  useEffect(() => {
-    const container = ticksRef.current
-    if (!container) return
-    container.innerHTML = ''
-    for (let i = 0; i < TICK_COUNT; i++) {
-      const bar = document.createElement('div')
-      bar.className = 'tick w-[3px] rounded-t-sm'
-      bar.style.height = `${Math.floor(Math.random() * 85) + 15}%`
-      container.appendChild(bar)
-    }
-  }, [])
-
-  // Recolour the ticks as a left → right cascade, matching the wipe direction.
-  useEffect(() => {
-    const container = ticksRef.current
-    if (!container) return
-    const bars = container.children
-    for (let i = 0; i < bars.length; i++) {
-      const bar = bars[i] as HTMLElement
-      bar.style.transitionDelay = `${i * 18}ms`
-      bar.style.backgroundColor = i > 28 ? '#EF4444' : i > 18 ? '#F59E0B' : currentSlide.accent
-    }
   }, [currentSlide])
 
   const goToSlide = (idx: number) => {
@@ -251,15 +224,6 @@ export function HeroSlider() {
       className="relative w-full min-h-[520px] sm:min-h-[560px] rounded-3xl overflow-hidden p-8 sm:p-12 flex flex-col justify-between text-white shadow-2xl border border-white/10 my-4 transition-[box-shadow] duration-700 ease-[cubic-bezier(0.4,0,0.15,1)]"
       style={{ background: currentSlide.gradient }}
     >
-      {/* Ambient Sensor-Tick Layer */}
-      <div id="particles-layer" className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-        <div
-          ref={ticksRef}
-          id="tick-field"
-          className="absolute bottom-0 right-0 w-1/2 h-2/3 flex items-end justify-end gap-[3px] pr-8 pb-8 opacity-[0.15]"
-        />
-      </div>
-
       {/* Directional theme transition: the outgoing gradient retreats to the
           right, uncovering the new theme, chased by a bright leading edge. */}
       {sweeping && prevGradient && (

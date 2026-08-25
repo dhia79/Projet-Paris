@@ -267,8 +267,10 @@ def score(
 
     if in_woodland:
         ratio = 1.0
+    elif saturation <= 0:
+        ratio = 0.0
     else:
-        ratio = 0.0 if saturation <= 0 else min(1.0, tree_count / saturation)
+        ratio = min(1.0, tree_count / saturation)
     blended = (1.0 - weight) * baseline + weight * 100.0 * ratio
 
     return max(0, min(100, round(blended)))

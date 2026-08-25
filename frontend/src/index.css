@@ -332,11 +332,6 @@ html.lenis, html.lenis body { height: auto; }
   background: var(--accent);
 }
 
-/* Sensor ticks in hero plot — eased to match the wipe's glide */
-.tick {
-  transition: background-color 1s cubic-bezier(0.4, 0, 0.15, 1);
-}
-
 /* --- Heat simulator slider ------------------------------------------- */
 /* Track is filled up to --fill-pct (set inline from the current temp), so the
    control reads as a gauge rather than a bare line. */
