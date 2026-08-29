@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { CATEGORY_BADGE_CLASSES, CATEGORY_LABELS, type CoolSpot } from '../types/coolspot'
 import { arrondissementLabel } from '../store/selectors'
 
@@ -13,7 +14,15 @@ export function SpotDetailsDrawer({ spot, onClose }: { spot: CoolSpot | null; on
       if (event.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+
+    // Lock background scroll while the drawer owns the viewport.
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
   }, [spot, onClose])
 
   if (!spot) return null
@@ -30,8 +39,15 @@ export function SpotDetailsDrawer({ spot, onClose }: { spot: CoolSpot | null; on
     ? `https://www.google.com/maps/search/?api=1&query=${spot.coordinates.lat},${spot.coordinates.lon}`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot.name + ' ' + spot.address)}`
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end">
+  // Rendered through a portal: the table card is a `[data-reveal]` element and its
+  // `transform` would otherwise make it the containing block for `position: fixed`,
+  // trapping the overlay inside the card instead of covering the viewport.
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Fiche du refuge ${spot.name}`}
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end">
       {/* Backdrop overlay */}
       <div className="absolute inset-0" onClick={onClose} />
 
@@ -85,7 +101,7 @@ export function SpotDetailsDrawer({ spot, onClose }: { spot: CoolSpot | null; on
             <div>
               <dt className="ink-mute uppercase tracking-wider text-[10px]">Adresse</dt>
               <dd className="ink font-semibold mt-0.5 flex items-center justify-between gap-2">
-                <span className="truncate">{spot.address}</span>
+                <span className="min-w-0 break-words">{spot.address}</span>
                 <button
                   onClick={copyAddress}
                   className="px-2.5 py-1 rounded bg-[color:var(--chip-bg)] border surf-bd hover:acc-bd text-[10px] ink-mute hover:ink transition-colors shrink-0 cursor-pointer"
@@ -127,6 +143,7 @@ export function SpotDetailsDrawer({ spot, onClose }: { spot: CoolSpot | null; on
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

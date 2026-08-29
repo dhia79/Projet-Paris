@@ -27,8 +27,8 @@ function FreshnessBar({ score }: { score: number }) {
   else if (score >= 85) barColor = 'bg-emerald-600'
 
   return (
-    <div className="flex items-center gap-2 font-mono-data text-xs">
-      <div className="w-16 sm:w-20 bg-[#EFECE3] h-2 rounded-full overflow-hidden border surf-bd">
+    <div className="flex items-center gap-2 font-mono-data text-xs flex-wrap">
+      <div className="w-full max-w-[80px] min-w-[32px] bg-[#EFECE3] h-2 rounded-full overflow-hidden border surf-bd">
         <div className={`h-full ${barColor} transition-all duration-500`} style={{ width: `${score}%` }} />
       </div>
       <span className="tabular-nums font-semibold ink text-[11px]">{score}/100</span>
@@ -125,33 +125,33 @@ export function CoolSpotsTable({
 
   return (
     <div data-reveal className="surf border surf-bd rounded-lg p-6 sm:p-8 space-y-6 shadow-sm">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+      <div>
+        <table className="w-full table-fixed text-left border-collapse">
           <thead>
             <tr className="border-b surf-bd ink-mute text-[11px] font-mono-data uppercase tracking-wide">
-              <th className="py-3 px-4 font-medium">
-                <button onClick={() => onSort('name')} className="hover:ink transition-colors flex items-center gap-1 cursor-pointer">
+              <th className="py-3 px-4 font-medium w-[26%] md:w-[22%]">
+                <button onClick={() => onSort('name')} className="hover:ink transition-colors inline-flex items-start gap-1 text-left cursor-pointer">
                   Désignation du site {sort.column === 'name' ? (sort.direction === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-3 px-4 font-medium">
-                <button onClick={() => onSort('category')} className="hover:ink transition-colors flex items-center gap-1 cursor-pointer">
+              <th className="hidden md:table-cell py-3 px-4 font-medium w-[14%] xl:w-[12%]">
+                <button onClick={() => onSort('category')} className="hover:ink transition-colors inline-flex items-start gap-1 text-left cursor-pointer">
                   Catégorie {sort.column === 'category' ? (sort.direction === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-3 px-4 font-medium">
-                <button onClick={() => onSort('arrondissement')} className="hover:ink transition-colors flex items-center gap-1 cursor-pointer">
+              <th className="py-3 px-4 font-medium w-[26%] md:w-[17%]">
+                <button onClick={() => onSort('arrondissement')} className="hover:ink transition-colors inline-flex items-start gap-1 text-left cursor-pointer">
                   Arrondissement & adresse {sort.column === 'arrondissement' ? (sort.direction === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-3 px-4 font-medium">
-                <button onClick={() => onSort('canopyScore')} className="hover:ink transition-colors flex items-center gap-1 cursor-pointer">
+              <th className="py-3 px-4 font-medium w-[22%] md:w-[12%]">
+                <button onClick={() => onSort('canopyScore')} className="hover:ink transition-colors inline-flex items-start gap-1 text-left cursor-pointer">
                   Fraîcheur {sort.column === 'canopyScore' ? (sort.direction === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-3 px-4 font-medium">Statut & horaires</th>
-              <th className="py-3 px-4 font-medium">Source</th>
-              <th className="py-3 px-4 text-right font-medium">Actions</th>
+              <th className="hidden lg:table-cell py-3 px-4 font-medium w-[17%]">Statut & horaires</th>
+              <th className="hidden xl:table-cell py-3 px-4 font-medium w-[10%]">Source</th>
+              <th className="py-3 px-4 text-right font-medium w-[26%] md:w-[12%]">Actions</th>
             </tr>
           </thead>
           <tbody id="table-body">
@@ -181,15 +181,15 @@ export function CoolSpotsTable({
                   <tr key={spot.id} className="border-b surf-bd hover-surf transition-colors editorial-row-entry">
                     {/* Name */}
                     <td className="py-3.5 px-4">
-                      <div className="font-medium ink text-sm flex items-center gap-2">
-                        <span>{spot.name}</span>
+                      <div className="font-medium ink text-sm">
+                        <span className="break-words">{spot.name}</span>
                       </div>
                       <span className="text-[10px] font-mono-data ink-mute">{spot.shadeLevel}</span>
                     </td>
 
                     {/* Category */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className={`px-2.5 py-1 rounded-md text-[11px] font-mono-data font-semibold ${CATEGORY_BADGE_CLASSES[spot.category]}`}>
+                    <td className="hidden md:table-cell py-3.5 px-4 xl:whitespace-nowrap">
+                      <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-mono-data font-semibold ${CATEGORY_BADGE_CLASSES[spot.category]}`}>
                         {CATEGORY_LABELS[spot.category]}
                       </span>
                     </td>
@@ -199,27 +199,31 @@ export function CoolSpotsTable({
                       <div className="font-mono-data text-xs ink">
                         {spot.arrondissement ? `Paris ${arrondissementLabel(spot.arrondissement)}` : 'Non renseigné'}
                       </div>
-                      <div className="text-xs ink-mute truncate max-w-xs" title={spot.address}>
+                      <div className="text-xs ink-mute truncate" title={spot.address}>
                         {spot.address}
+                      </div>
+                      {/* Columns hidden at this breakpoint stay readable inline. */}
+                      <div className="lg:hidden mt-1 text-[10px] font-mono-data ink-mute break-words">
+                        {CATEGORY_LABELS[spot.category]} · {spot.openingHours || 'Accessible'}
                       </div>
                     </td>
 
                     {/* Freshness score gauge */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-3.5 px-4 sm:whitespace-nowrap">
                       <FreshnessBar score={spot.canopyScore} />
                     </td>
 
                     {/* Hours & status */}
-                    <td className="py-3.5 px-4 whitespace-nowrap font-mono-data text-xs">
-                      <div className="ink-soft">{spot.openingHours || 'Accessible'}</div>
+                    <td className="hidden lg:table-cell py-3.5 px-4 font-mono-data text-xs">
+                      <div className="ink-soft break-words">{spot.openingHours || 'Accessible'}</div>
                       <div className="text-[10px] text-emerald-700 font-semibold">
                         {spot.isFree ? '100% Gratuit' : 'Tarif Municipal'}
                       </div>
                     </td>
 
                     {/* Source dataset */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded bg-[color:var(--chip-bg)] border surf-bd text-[10px] font-mono-data ink-mute">
+                    <td className="hidden xl:table-cell py-3.5 px-4 sm:whitespace-nowrap">
+                      <span className="inline-block px-2 py-0.5 rounded bg-[color:var(--chip-bg)] border surf-bd text-[10px] font-mono-data ink-mute">
                         {SOURCE_LABELS[spot.source] || spot.source}
                       </span>
                     </td>

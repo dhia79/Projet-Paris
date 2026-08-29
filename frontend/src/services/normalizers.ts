@@ -111,6 +111,15 @@ export function adaptFountain(dto: FountainDTO, index: number): CoolSpot {
   }
 }
 
+/** `ouvert_ferme` is an Oui/Non 24h flag, not a schedule: never surface it raw. */
+function greenSpaceHours(raw: string): string {
+  const value = raw.trim().toLowerCase()
+  if (!value) return 'Horaires municipaux'
+  if (value === 'oui') return 'Ouvert 24h/24'
+  if (value === 'non') return 'Fermeture nocturne (horaires municipaux)'
+  return toTitleCase(raw)
+}
+
 export function adaptGreenSpace(dto: GreenSpaceDTO, index: number): CoolSpot {
   const kind = clean(dto.type_ev) || clean(dto.categorie)
   const hours = clean(dto.ouvert_ferme)
@@ -128,7 +137,7 @@ export function adaptGreenSpace(dto: GreenSpaceDTO, index: number): CoolSpot {
     isFree: true,
     price: 'FREE',
     coordinates: toCoordinates(dto.geom_x_y),
-    openingHours: hours ? toTitleCase(hours) : 'Horaires municipaux',
+    openingHours: greenSpaceHours(hours),
     isOpenNow: true,
     canopyScore: hashScore(id, 80, 98),
     waterAccess: true,
